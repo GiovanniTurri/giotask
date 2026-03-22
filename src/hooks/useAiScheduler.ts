@@ -1,6 +1,8 @@
 import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUpdateTask } from "@/hooks/useTasks";
+import { useLlmConfig } from "@/hooks/useLlmConfig";
+import { buildSystemPrompt, schedulerToolDef, formatTasksForPrompt } from "@/lib/schedulerPrompt";
 import { toast } from "sonner";
 
 interface ScheduleEntry {
@@ -10,23 +12,78 @@ interface ScheduleEntry {
   fragment_minutes: number;
 }
 
+function parseScheduleFromResponse(result: any): ScheduleEntry[] {
+  const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
+  if (!toolCall) throw new Error("No tool call in LLM response");
+  const parsed = JSON.parse(toolCall.function.arguments);
+  return parsed.schedule || parsed;
+}
+
 export function useAiScheduler() {
   const [isScheduling, setIsScheduling] = useState(false);
   const [preview, setPreview] = useState<ScheduleEntry[] | null>(null);
   const updateTask = useUpdateTask();
+  const { data: llmConfig } = useLlmConfig();
+
+  const fetchLocalSchedule = async (): Promise<ScheduleEntry[]> => {
+    // Fetch tasks directly from Supabase
+    const { data: tasks, error } = await supabase
+      .from("tasks")
+      .select("id, title, description, time_estimate, priority, status, scheduled_date, scheduled_start_time, client_tag_id, client_tags(name)")
+      .neq("status", "done")
+      .order("priority", { ascending: false });
+    if (error) throw error;
+    if (!tasks || tasks.length === 0) return [];
+
+    const today = new Date().toISOString().split("T")[0];
+    const taskList = formatTasksForPrompt(tasks);
+    const endpoint = llmConfig?.local_api_endpoint || "http://localhost:1234/v1/chat/completions";
+    const model = llmConfig?.local_model || "llama3";
+
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        model,
+        messages: [
+          { role: "system", content: buildSystemPrompt(today) },
+          { role: "user", content: `Here are the tasks to schedule:\n${JSON.stringify(taskList, null, 2)}` },
+        ],
+        tools: [schedulerToolDef],
+        tool_choice: { type: "function", function: { name: "set_schedule" } },
+      }),
+    });
+
+    if (!response.ok) {
+      const text = await response.text();
+      throw new Error(`Local LLM returned ${response.status}: ${text}`);
+    }
+
+    const result = await response.json();
+    return parseScheduleFromResponse(result);
+  };
 
   const fetchSchedule = async () => {
     setIsScheduling(true);
     try {
-      const { data, error } = await supabase.functions.invoke("schedule-tasks");
-      if (error) throw error;
+      const provider = llmConfig?.active_provider || "lovable";
 
-      if (data?.error) {
-        toast.error(data.error);
-        return;
+      let schedule: ScheduleEntry[];
+
+      if (provider === "local") {
+        // Call local LLM directly from the browser
+        schedule = await fetchLocalSchedule();
+      } else {
+        // Use the edge function for lovable/cloud providers
+        const { data, error } = await supabase.functions.invoke("schedule-tasks");
+        if (error) throw error;
+        if (data?.error) {
+          toast.error(data.error);
+          return;
+        }
+        schedule = data?.schedule || [];
       }
 
-      const schedule: ScheduleEntry[] = data?.schedule || [];
       if (schedule.length === 0) {
         toast.info("No tasks to schedule");
         return;
@@ -43,7 +100,6 @@ export function useAiScheduler() {
     if (!preview) return;
     setIsScheduling(true);
     try {
-      // Group by task_id and take the first fragment's date/time
       const uniqueTasks = new Map<string, ScheduleEntry>();
       for (const entry of preview) {
         if (!uniqueTasks.has(entry.task_id)) {

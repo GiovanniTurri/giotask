@@ -34,6 +34,13 @@ serve(async (req) => {
     const { data: config } = await supabase.from("llm_config").select("*").limit(1).single();
     const provider = config?.active_provider || "lovable";
 
+    // Local provider is handled client-side — reject here
+    if (provider === "local") {
+      return new Response(JSON.stringify({ error: "Local LLM calls are handled in the browser. This edge function only supports lovable and cloud providers." }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     // Build prompt
     const today = new Date().toISOString().split("T")[0];
     const taskList = tasks.map((t: any) => ({
@@ -103,14 +110,11 @@ Return a JSON array using this tool.`;
       apiUrl = "https://ai.gateway.lovable.dev/v1/chat/completions";
       headers = { Authorization: `Bearer ${lovableApiKey}`, "Content-Type": "application/json" };
       model = "google/gemini-3-flash-preview";
-    } else if (provider === "cloud") {
+    } else {
+      // cloud provider
       apiUrl = config?.cloud_api_endpoint || "https://api.openai.com/v1/chat/completions";
       headers = { Authorization: `Bearer ${config?.cloud_api_key}`, "Content-Type": "application/json" };
       model = config?.cloud_model || "gpt-4";
-    } else {
-      apiUrl = config?.local_api_endpoint || "http://localhost:11434/v1/chat/completions";
-      headers = { "Content-Type": "application/json" };
-      model = config?.local_model || "llama3";
     }
 
     const llmResponse = await fetch(apiUrl, {
