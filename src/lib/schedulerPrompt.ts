@@ -26,6 +26,23 @@ Rules:
 Return a JSON array using this tool.`;
 }
 
+export function buildLocalSystemPrompt(today: string) {
+  return `You are an intelligent task scheduling assistant. Today is ${today}.
+Given a list of tasks with time estimates, priorities, and descriptions, produce an optimal schedule.
+
+Rules:
+- Schedule tasks across the next 14 days starting from today
+- Higher priority tasks should be scheduled sooner
+- Working hours are 9:00 to 18:00
+- Large tasks (>120 min) MUST be fragmented into smaller blocks across multiple days. Each fragment should be 30-90 minutes.
+- Return fragments as separate entries with the SAME task id but different dates/times and a "fragment_minutes" field
+- Keep total fragment_minutes equal to the original time_estimate
+- Consider task descriptions for urgency clues
+
+You MUST respond with ONLY a JSON array, no extra text, no markdown formatting. Example format:
+[{"task_id":"uuid","scheduled_date":"YYYY-MM-DD","scheduled_start_time":"HH:MM:SS","fragment_minutes":60}]`;
+}
+
 export const schedulerToolDef = {
   type: "function" as const,
   function: {

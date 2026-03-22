@@ -2,7 +2,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUpdateTask } from "@/hooks/useTasks";
 import { useLlmConfig } from "@/hooks/useLlmConfig";
-import { buildSystemPrompt, schedulerToolDef, formatTasksForPrompt } from "@/lib/schedulerPrompt";
+import { buildLocalSystemPrompt, schedulerToolDef, formatTasksForPrompt } from "@/lib/schedulerPrompt";
 import { toast } from "sonner";
 
 interface ScheduleEntry {
@@ -19,6 +19,21 @@ function parseScheduleFromResponse(result: any): ScheduleEntry[] {
   return parsed.schedule || parsed;
 }
 
+function extractJsonFromText(text: string): ScheduleEntry[] {
+  // Try to find JSON array in markdown code blocks first
+  const codeBlockMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
+  const jsonStr = codeBlockMatch ? codeBlockMatch[1].trim() : text.trim();
+
+  // Find the first [ and last ] to extract the array
+  const start = jsonStr.indexOf("[");
+  const end = jsonStr.lastIndexOf("]");
+  if (start === -1 || end === -1) throw new Error("No JSON array found in LLM response");
+
+  const parsed = JSON.parse(jsonStr.substring(start, end + 1));
+  if (!Array.isArray(parsed)) throw new Error("LLM response is not an array");
+  return parsed;
+}
+
 export function useAiScheduler() {
   const [isScheduling, setIsScheduling] = useState(false);
   const [preview, setPreview] = useState<ScheduleEntry[] | null>(null);
@@ -26,7 +41,6 @@ export function useAiScheduler() {
   const { data: llmConfig } = useLlmConfig();
 
   const fetchLocalSchedule = async (): Promise<ScheduleEntry[]> => {
-    // Fetch tasks directly from Supabase
     const { data: tasks, error } = await supabase
       .from("tasks")
       .select("id, title, description, time_estimate, priority, status, scheduled_date, scheduled_start_time, client_tag_id, client_tags(name)")
@@ -46,11 +60,9 @@ export function useAiScheduler() {
       body: JSON.stringify({
         model,
         messages: [
-          { role: "system", content: buildSystemPrompt(today) },
+          { role: "system", content: buildLocalSystemPrompt(today) },
           { role: "user", content: `Here are the tasks to schedule:\n${JSON.stringify(taskList, null, 2)}` },
         ],
-        tools: [schedulerToolDef],
-        tool_choice: { type: "function", function: { name: "set_schedule" } },
       }),
     });
 
@@ -60,7 +72,20 @@ export function useAiScheduler() {
     }
 
     const result = await response.json();
-    return parseScheduleFromResponse(result);
+
+    // Try tool_calls first (for local servers that support it), then fall back to content parsing
+    const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
+    if (toolCall) {
+      const parsed = JSON.parse(toolCall.function.arguments);
+      return parsed.schedule || parsed;
+    }
+
+    const content = result.choices?.[0]?.message?.content;
+    if (content) {
+      return extractJsonFromText(content);
+    }
+
+    throw new Error("No usable response from local LLM");
   };
 
   const fetchSchedule = async () => {
