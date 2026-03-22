@@ -14,7 +14,113 @@ export type Database = {
   }
   public: {
     Tables: {
-      [_ in never]: never
+      client_tags: {
+        Row: {
+          color: string
+          created_at: string
+          id: string
+          name: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          id?: string
+          name: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          id?: string
+          name?: string
+        }
+        Relationships: []
+      }
+      llm_config: {
+        Row: {
+          active_provider: string
+          cloud_api_endpoint: string | null
+          cloud_api_key: string | null
+          cloud_model: string | null
+          created_at: string
+          id: string
+          local_api_endpoint: string | null
+          local_model: string | null
+          updated_at: string
+        }
+        Insert: {
+          active_provider?: string
+          cloud_api_endpoint?: string | null
+          cloud_api_key?: string | null
+          cloud_model?: string | null
+          created_at?: string
+          id?: string
+          local_api_endpoint?: string | null
+          local_model?: string | null
+          updated_at?: string
+        }
+        Update: {
+          active_provider?: string
+          cloud_api_endpoint?: string | null
+          cloud_api_key?: string | null
+          cloud_model?: string | null
+          created_at?: string
+          id?: string
+          local_api_endpoint?: string | null
+          local_model?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      tasks: {
+        Row: {
+          client_tag_id: string | null
+          created_at: string
+          description: string | null
+          id: string
+          priority: number | null
+          scheduled_date: string | null
+          scheduled_start_time: string | null
+          status: string
+          time_estimate: number
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          client_tag_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          priority?: number | null
+          scheduled_date?: string | null
+          scheduled_start_time?: string | null
+          status?: string
+          time_estimate?: number
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          client_tag_id?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          priority?: number | null
+          scheduled_date?: string | null
+          scheduled_start_time?: string | null
+          status?: string
+          time_estimate?: number
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tasks_client_tag_id_fkey"
+            columns: ["client_tag_id"]
+            isOneToOne: false
+            referencedRelation: "client_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
     }
     Views: {
       [_ in never]: never
