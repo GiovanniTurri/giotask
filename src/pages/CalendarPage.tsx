@@ -1,8 +1,115 @@
+import { useState, useCallback } from "react";
+import { format } from "date-fns";
+import { useTasks, useUpdateTask } from "@/hooks/useTasks";
+import { CalendarHeader } from "@/components/calendar/CalendarHeader";
+import { MonthView } from "@/components/calendar/MonthView";
+import { WeekView } from "@/components/calendar/WeekView";
+import { DayView } from "@/components/calendar/DayView";
+import { TaskDialog } from "@/components/TaskDialog";
+import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Loader2 } from "lucide-react";
+import { toast } from "sonner";
+
+type ViewType = "month" | "week" | "day";
+
 export default function CalendarPage() {
+  const [view, setView] = useState<ViewType>("month");
+  const [currentDate, setCurrentDate] = useState(new Date());
+  const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
+  const [editingTask, setEditingTask] = useState<any>(null);
+  const [dialogOpen, setDialogOpen] = useState(false);
+
+  const { data: tasks, isLoading } = useTasks();
+  const updateTask = useUpdateTask();
+
+  const handleDragStart = useCallback((taskId: string) => {
+    setDraggingTaskId(taskId);
+  }, []);
+
+  const handleDrop = useCallback(
+    async (date: string, hour?: number) => {
+      if (!draggingTaskId) return;
+      try {
+        const updates: any = { id: draggingTaskId, scheduled_date: date };
+        if (hour !== undefined) {
+          updates.scheduled_start_time = `${String(hour).padStart(2, "0")}:00:00`;
+        }
+        await updateTask.mutateAsync(updates);
+        toast.success("Task rescheduled");
+      } catch (e: any) {
+        toast.error(e.message);
+      }
+      setDraggingTaskId(null);
+    },
+    [draggingTaskId, updateTask]
+  );
+
+  const handleTaskClick = (task: any) => {
+    setEditingTask(task);
+    setDialogOpen(true);
+  };
+
+  const handleDayClick = (date: Date) => {
+    setCurrentDate(date);
+    setView("day");
+  };
+
   return (
-    <div className="space-y-6">
-      <h1 className="text-2xl font-bold tracking-tight">Calendar</h1>
-      <p className="text-muted-foreground">Calendar view coming in Phase 2.</p>
+    <div className="space-y-4">
+      <div className="flex items-center justify-between flex-wrap gap-3">
+        <CalendarHeader
+          currentDate={currentDate}
+          view={view}
+          onDateChange={setCurrentDate}
+          onToday={() => setCurrentDate(new Date())}
+        />
+        <Tabs value={view} onValueChange={(v) => setView(v as ViewType)}>
+          <TabsList>
+            <TabsTrigger value="month">Month</TabsTrigger>
+            <TabsTrigger value="week">Week</TabsTrigger>
+            <TabsTrigger value="day">Day</TabsTrigger>
+          </TabsList>
+        </Tabs>
+      </div>
+
+      {isLoading ? (
+        <div className="flex items-center justify-center py-20">
+          <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <>
+          {view === "month" && (
+            <MonthView
+              currentDate={currentDate}
+              tasks={tasks || []}
+              onDragStart={handleDragStart}
+              onDrop={handleDrop}
+              onTaskClick={handleTaskClick}
+              onDayClick={handleDayClick}
+            />
+          )}
+          {view === "week" && (
+            <WeekView
+              currentDate={currentDate}
+              tasks={tasks || []}
+              onDragStart={handleDragStart}
+              onDrop={handleDrop}
+              onTaskClick={handleTaskClick}
+            />
+          )}
+          {view === "day" && (
+            <DayView
+              currentDate={currentDate}
+              tasks={tasks || []}
+              onDragStart={handleDragStart}
+              onDrop={handleDrop}
+              onTaskClick={handleTaskClick}
+            />
+          )}
+        </>
+      )}
+
+      <TaskDialog open={dialogOpen} onOpenChange={setDialogOpen} task={editingTask} />
     </div>
   );
 }
