@@ -65,7 +65,7 @@ export function MonthView({ currentDate, tasks, onDragStart, onDrop, onTaskClick
                     task={task}
                     compact
                     onDragStart={() => onDragStart(task.id)}
-                    onClick={(e) => { e?.stopPropagation?.(); onTaskClick(task); }}
+                    onClick={() => onTaskClick(task)}
                   />
                 ))}
                 {dayTasks.length > 3 && (
