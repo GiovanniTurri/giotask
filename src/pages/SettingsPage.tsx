@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Loader2, Save, Cloud, Monitor, Sparkles } from "lucide-react";
 import { toast } from "sonner";
+import { GoogleCalendarSettings } from "@/components/GoogleCalendarSettings";
 
 export default function SettingsPage() {
   const { data: config, isLoading } = useLlmConfig();
@@ -58,8 +59,11 @@ export default function SettingsPage() {
     <div className="space-y-6 max-w-2xl">
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground mt-1">Configure AI provider for intelligent task scheduling</p>
+        <p className="text-sm text-muted-foreground mt-1">Configure AI provider and integrations</p>
       </div>
+
+      {/* Google Calendar Integration */}
+      <GoogleCalendarSettings />
 
       {/* Provider Selection */}
       <Card className="p-5 space-y-4">

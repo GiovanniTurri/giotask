@@ -35,6 +35,98 @@ export type Database = {
         }
         Relationships: []
       }
+      google_calendar_connections: {
+        Row: {
+          access_token: string
+          created_at: string
+          google_email: string
+          id: string
+          last_synced_at: string | null
+          refresh_token: string
+          selected_calendars: Json | null
+          token_expires_at: string
+          updated_at: string
+        }
+        Insert: {
+          access_token: string
+          created_at?: string
+          google_email: string
+          id?: string
+          last_synced_at?: string | null
+          refresh_token: string
+          selected_calendars?: Json | null
+          token_expires_at: string
+          updated_at?: string
+        }
+        Update: {
+          access_token?: string
+          created_at?: string
+          google_email?: string
+          id?: string
+          last_synced_at?: string | null
+          refresh_token?: string
+          selected_calendars?: Json | null
+          token_expires_at?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      google_calendar_events: {
+        Row: {
+          all_day: boolean | null
+          calendar_id: string
+          color: string | null
+          connection_id: string
+          created_at: string
+          description: string | null
+          end_time: string
+          google_event_id: string
+          id: string
+          location: string | null
+          start_time: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          all_day?: boolean | null
+          calendar_id: string
+          color?: string | null
+          connection_id: string
+          created_at?: string
+          description?: string | null
+          end_time: string
+          google_event_id: string
+          id?: string
+          location?: string | null
+          start_time: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          all_day?: boolean | null
+          calendar_id?: string
+          color?: string | null
+          connection_id?: string
+          created_at?: string
+          description?: string | null
+          end_time?: string
+          google_event_id?: string
+          id?: string
+          location?: string | null
+          start_time?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "google_calendar_events_connection_id_fkey"
+            columns: ["connection_id"]
+            isOneToOne: false
+            referencedRelation: "google_calendar_connections"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       llm_config: {
         Row: {
           active_provider: string

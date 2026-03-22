@@ -4,11 +4,23 @@ import {
 } from "date-fns";
 import { cn } from "@/lib/utils";
 import { TaskBlock } from "./TaskBlock";
+import { GoogleEventBlock } from "./GoogleEventBlock";
 import type { Task } from "@/hooks/useTasks";
+
+interface GoogleEvent {
+  id: string;
+  title: string;
+  start_time: string;
+  end_time: string;
+  all_day: boolean;
+  color: string | null;
+  location: string | null;
+}
 
 interface MonthViewProps {
   currentDate: Date;
   tasks: (Task & { client_tags?: { name: string; color: string } | null })[];
+  googleEvents?: GoogleEvent[];
   onDragStart: (taskId: string) => void;
   onDrop: (date: string) => void;
   onTaskClick: (task: any) => void;
@@ -17,7 +29,7 @@ interface MonthViewProps {
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-export function MonthView({ currentDate, tasks, onDragStart, onDrop, onTaskClick, onDayClick }: MonthViewProps) {
+export function MonthView({ currentDate, tasks, googleEvents = [], onDragStart, onDrop, onTaskClick, onDayClick }: MonthViewProps) {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
   const calendarStart = startOfWeek(monthStart);
@@ -26,6 +38,9 @@ export function MonthView({ currentDate, tasks, onDragStart, onDrop, onTaskClick
 
   const getTasksForDay = (day: Date) =>
     tasks.filter((t) => t.scheduled_date && isSameDay(new Date(t.scheduled_date), day));
+
+  const getGoogleEventsForDay = (day: Date) =>
+    googleEvents.filter((e) => isSameDay(new Date(e.start_time), day));
 
   return (
     <div className="border rounded-lg overflow-hidden">
@@ -39,7 +54,9 @@ export function MonthView({ currentDate, tasks, onDragStart, onDrop, onTaskClick
       <div className="grid grid-cols-7 auto-rows-[minmax(100px,1fr)]">
         {days.map((day) => {
           const dayTasks = getTasksForDay(day);
+          const dayGEvents = getGoogleEventsForDay(day);
           const dateStr = format(day, "yyyy-MM-dd");
+          const totalItems = dayTasks.length + dayGEvents.length;
           return (
             <div
               key={dateStr}
@@ -59,7 +76,10 @@ export function MonthView({ currentDate, tasks, onDragStart, onDrop, onTaskClick
                 {format(day, "d")}
               </div>
               <div className="space-y-0.5 overflow-hidden">
-                {dayTasks.slice(0, 3).map((task) => (
+                {dayGEvents.slice(0, 2).map((event) => (
+                  <GoogleEventBlock key={event.id} event={event} compact />
+                ))}
+                {dayTasks.slice(0, 3 - Math.min(dayGEvents.length, 2)).map((task) => (
                   <TaskBlock
                     key={task.id}
                     task={task}
@@ -68,9 +88,9 @@ export function MonthView({ currentDate, tasks, onDragStart, onDrop, onTaskClick
                     onClick={() => onTaskClick(task)}
                   />
                 ))}
-                {dayTasks.length > 3 && (
+                {totalItems > 3 && (
                   <div className="text-[10px] text-muted-foreground px-1">
-                    +{dayTasks.length - 3} more
+                    +{totalItems - 3} more
                   </div>
                 )}
               </div>

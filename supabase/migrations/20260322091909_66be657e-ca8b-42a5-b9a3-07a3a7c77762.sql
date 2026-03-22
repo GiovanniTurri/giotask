@@ -1,0 +1,1 @@
+ALTER TABLE public.google_calendar_connections ADD CONSTRAINT google_calendar_connections_google_email_key UNIQUE (google_email);

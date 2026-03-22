@@ -1,6 +1,7 @@
-import { useState, useCallback } from "react";
-import { format } from "date-fns";
+import { useState, useCallback, useMemo } from "react";
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays } from "date-fns";
 import { useTasks, useUpdateTask } from "@/hooks/useTasks";
+import { useGoogleCalendarEvents } from "@/hooks/useGoogleCalendar";
 import { useAiScheduler } from "@/hooks/useAiScheduler";
 import { CalendarHeader } from "@/components/calendar/CalendarHeader";
 import { MonthView } from "@/components/calendar/MonthView";
@@ -25,6 +26,22 @@ export default function CalendarPage() {
   const { data: tasks, isLoading } = useTasks();
   const updateTask = useUpdateTask();
   const { isScheduling, preview, fetchSchedule, applySchedule, dismissPreview } = useAiScheduler();
+
+  // Calculate date range for Google Calendar events based on current view
+  const dateRange = useMemo(() => {
+    if (view === "month") {
+      const ms = startOfWeek(startOfMonth(currentDate));
+      const me = endOfWeek(endOfMonth(currentDate));
+      return { start: ms.toISOString(), end: me.toISOString() };
+    } else if (view === "week") {
+      const ws = startOfWeek(currentDate);
+      return { start: ws.toISOString(), end: addDays(ws, 7).toISOString() };
+    } else {
+      return { start: currentDate.toISOString(), end: addDays(currentDate, 1).toISOString() };
+    }
+  }, [currentDate, view]);
+
+  const { data: googleEvents } = useGoogleCalendarEvents(dateRange.start, dateRange.end);
 
   const handleDragStart = useCallback((taskId: string) => {
     setDraggingTaskId(taskId);
@@ -111,6 +128,7 @@ export default function CalendarPage() {
             <MonthView
               currentDate={currentDate}
               tasks={tasks || []}
+              googleEvents={googleEvents || []}
               onDragStart={handleDragStart}
               onDrop={handleDrop}
               onTaskClick={handleTaskClick}
@@ -121,6 +139,7 @@ export default function CalendarPage() {
             <WeekView
               currentDate={currentDate}
               tasks={tasks || []}
+              googleEvents={googleEvents || []}
               onDragStart={handleDragStart}
               onDrop={handleDrop}
               onTaskClick={handleTaskClick}
@@ -130,6 +149,7 @@ export default function CalendarPage() {
             <DayView
               currentDate={currentDate}
               tasks={tasks || []}
+              googleEvents={googleEvents || []}
               onDragStart={handleDragStart}
               onDrop={handleDrop}
               onTaskClick={handleTaskClick}
