@@ -1,36 +1,47 @@
+## Fix Local LLM Support
 
+### Problem
 
-## AI-Powered Task Manager with Calendar & Smart Scheduling
+The `schedule-tasks` edge function runs on remote servers. When configured with `http://localhost:1234/...`, it tries to reach localhost on the server, not the user's machine. Local LLMs are unreachable from edge functions.
 
-### Overview
-A single-user task management app with calendar views and LLM-powered intelligent scheduling. Built with React frontend and Lovable Cloud (Supabase) backend.
+### Solution
 
-### Phase 1: Core Task Management
-- **Task CRUD**: Create, edit, delete tasks with title, description, time estimate (in minutes), and client tags
-- **Client Tags**: Manageable tag system with create/edit/delete, color-coded badges
-- **Task List View**: Filterable by client tag, sortable by date/priority/estimate, with status tracking (todo/in-progress/done)
-- **Database**: Supabase tables for `tasks`, `client_tags`, and `llm_config`
+When the active provider is "local", make the LLM call **from the browser** instead of the edge function. Considera also the use of this software when running with "npm run dev" on the local PC.
 
-### Phase 2: Calendar Integration
-- **Calendar View**: Month/week/day views using a React calendar library
-- **Task Visualization**: Tasks displayed as blocks sized proportionally to their time estimates, color-coded by client tag
-- **Drag & Drop**: Reschedule tasks by dragging them on the calendar
-- **Navigation**: Easy switching between day/week/month views
+### Changes
 
-### Phase 3: LLM-Powered Smart Scheduling
-- **LLM Settings Page**: Configure two LLM endpoints (cloud API + local endpoint), with API key fields and a toggle to select active provider
-- **Intelligent Prioritization**: Edge function that sends task data to the selected LLM and returns suggested ordering based on urgency, dependencies, and context
-- **Fragmented Scheduling**: LLM can split large tasks into smaller time blocks across multiple days
-- **"Reschedule All" Button**: One-click AI-powered calendar reorganization with preview before applying
+**1. Create a shared prompt builder utility** (`src/lib/schedulerPrompt.ts`)
 
-### Phase 4: UI & Polish
-- Clean, minimal single-user dashboard with sidebar navigation (Tasks, Calendar, Settings)
-- Toast notifications for actions
-- Responsive layout
+- Extract the system prompt, tool definition, and task-list formatting logic from the edge function into a shared utility that both the edge function and frontend can use.
 
-### Architecture Notes
-- No auth needed (single superuser)
-- Lovable Cloud for database + edge functions
-- Edge function proxies LLM calls (supports OpenAI-compatible API format, works with both cloud and local LLMs like Ollama)
-- Lovable AI available as a fallback LLM option via the built-in gateway
+**2. Update `useAiScheduler.ts**`
 
+- Before calling the edge function, check the `llm_config` for the active provider.
+- If provider is `"local"`:
+  - Fetch tasks from Supabase directly (same query the edge function uses).
+  - Build the prompt and tool call payload locally.
+  - Call the local LLM endpoint (`fetch` from the browser to `http://localhost:1234/v1/chat/completions`).
+  - Parse the tool call response and return the schedule.
+- If provider is `"lovable"` or `"cloud"`: continue using the edge function as before.
+
+**3. Update `schedule-tasks/index.ts**`
+
+- Remove the local LLM branch (it can never work from the server).
+- Keep only lovable and cloud provider logic.
+
+**4. Add CORS note in Settings UI**
+
+- When "Local LLM" is selected, show a helper note: "Ensure your local LLM server has CORS enabled (LM Studio: enable it in Server settings)."
+
+### Technical Detail
+
+- Browser `fetch` to `localhost:1234` works because the browser runs on the user's machine.
+- LM Studio requires CORS to be enabled in its server settings for browser requests to succeed.
+- No database or migration changes needed.
+
+### Files Modified
+
+- `src/hooks/useAiScheduler.ts` — add local LLM branch
+- `src/lib/schedulerPrompt.ts` — new shared prompt builder
+- `supabase/functions/schedule-tasks/index.ts` — remove local branch
+- `src/pages/SettingsPage.tsx` — add CORS helper note for local provider
