@@ -1,13 +1,16 @@
 import { useState, useCallback } from "react";
 import { format } from "date-fns";
 import { useTasks, useUpdateTask } from "@/hooks/useTasks";
+import { useAiScheduler } from "@/hooks/useAiScheduler";
 import { CalendarHeader } from "@/components/calendar/CalendarHeader";
 import { MonthView } from "@/components/calendar/MonthView";
 import { WeekView } from "@/components/calendar/WeekView";
 import { DayView } from "@/components/calendar/DayView";
+import { SchedulePreview } from "@/components/calendar/SchedulePreview";
 import { TaskDialog } from "@/components/TaskDialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
-import { Loader2 } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Loader2, Sparkles } from "lucide-react";
 import { toast } from "sonner";
 
 type ViewType = "month" | "week" | "day";
@@ -21,6 +24,7 @@ export default function CalendarPage() {
 
   const { data: tasks, isLoading } = useTasks();
   const updateTask = useUpdateTask();
+  const { isScheduling, preview, fetchSchedule, applySchedule, dismissPreview } = useAiScheduler();
 
   const handleDragStart = useCallback((taskId: string) => {
     setDraggingTaskId(taskId);
@@ -63,14 +67,39 @@ export default function CalendarPage() {
           onDateChange={setCurrentDate}
           onToday={() => setCurrentDate(new Date())}
         />
-        <Tabs value={view} onValueChange={(v) => setView(v as ViewType)}>
-          <TabsList>
-            <TabsTrigger value="month">Month</TabsTrigger>
-            <TabsTrigger value="week">Week</TabsTrigger>
-            <TabsTrigger value="day">Day</TabsTrigger>
-          </TabsList>
-        </Tabs>
+        <div className="flex items-center gap-2">
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={fetchSchedule}
+            disabled={isScheduling}
+          >
+            {isScheduling ? (
+              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+            ) : (
+              <Sparkles className="h-4 w-4 mr-1" />
+            )}
+            Reschedule All
+          </Button>
+          <Tabs value={view} onValueChange={(v) => setView(v as ViewType)}>
+            <TabsList>
+              <TabsTrigger value="month">Month</TabsTrigger>
+              <TabsTrigger value="week">Week</TabsTrigger>
+              <TabsTrigger value="day">Day</TabsTrigger>
+            </TabsList>
+          </Tabs>
+        </div>
       </div>
+
+      {preview && (
+        <SchedulePreview
+          schedule={preview}
+          tasks={tasks || []}
+          onApply={applySchedule}
+          onDismiss={dismissPreview}
+          isApplying={isScheduling}
+        />
+      )}
 
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
