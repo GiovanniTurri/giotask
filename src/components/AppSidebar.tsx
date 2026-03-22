@@ -1,4 +1,4 @@
-import { CalendarDays, CheckSquare, Settings, Sparkles, Moon, Sun } from "lucide-react";
+import { CalendarDays, CheckSquare, Settings, Sparkles, Moon, Sun, Shield, FileText } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { cn } from "@/lib/utils";
 import { useEffect, useState } from "react";
@@ -7,6 +7,8 @@ const links = [
   { to: "/", icon: CheckSquare, label: "Tasks" },
   { to: "/calendar", icon: CalendarDays, label: "Calendar" },
   { to: "/settings", icon: Settings, label: "Settings" },
+  { to: "/privacy", icon: Shield, label: "Privacy Policy" },
+  { to: "/terms", icon: FileText, label: "Terms of Service" },
 ];
 
 function useDarkMode() {
