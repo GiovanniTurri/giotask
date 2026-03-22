@@ -138,13 +138,25 @@ export default function SettingsPage() {
           <Monitor className="h-4 w-4 text-primary" />
           <Label className="text-sm font-semibold">Local LLM</Label>
         </div>
+        {form.active_provider === "local" && (
+          <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3 text-xs text-yellow-700 dark:text-yellow-300">
+            <strong>Important:</strong> Local LLM calls are made directly from your browser.
+            Ensure your LLM server has <strong>CORS enabled</strong>.
+            <br />
+            <span className="text-muted-foreground">
+              LM Studio: Go to Server settings → enable "Enable CORS".
+              <br />
+              Ollama: Set <code>OLLAMA_ORIGINS=*</code> environment variable before starting.
+            </span>
+          </div>
+        )}
         <div className="space-y-3">
           <div>
             <Label className="text-xs text-muted-foreground">API Endpoint</Label>
             <Input
               value={form.local_api_endpoint}
               onChange={(e) => update("local_api_endpoint", e.target.value)}
-              placeholder="http://localhost:11434/v1/chat/completions"
+              placeholder="http://localhost:1234/v1/chat/completions"
             />
           </div>
           <div>
