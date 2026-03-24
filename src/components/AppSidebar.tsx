@@ -11,8 +11,17 @@ const links = [
   { to: "/terms", icon: FileText, label: "Terms of Service" },
 ];
 
+function getInitialDarkMode() {
+  const savedTheme = localStorage.getItem("theme");
+
+  if (savedTheme === "light") return false;
+  if (savedTheme === "dark") return true;
+
+  return true;
+}
+
 function useDarkMode() {
-  const [dark, setDark] = useState(() => document.documentElement.classList.contains("dark"));
+  const [dark, setDark] = useState(getInitialDarkMode);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -24,13 +33,6 @@ function useDarkMode() {
       localStorage.setItem("theme", "light");
     }
   }, [dark]);
-
-  // Init from localStorage on mount
-  useEffect(() => {
-    const saved = localStorage.getItem("theme");
-    if (saved === "dark") setDark(true);
-    else if (!saved && window.matchMedia("(prefers-color-scheme: dark)").matches) setDark(true);
-  }, []);
 
   return [dark, () => setDark((d) => !d)] as const;
 }
