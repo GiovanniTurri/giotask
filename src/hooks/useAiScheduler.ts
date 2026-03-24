@@ -2,7 +2,7 @@ import { useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
 import { useUpdateTask } from "@/hooks/useTasks";
 import { useLlmConfig } from "@/hooks/useLlmConfig";
-import { buildLocalSystemPrompt, schedulerToolDef, formatTasksForPrompt } from "@/lib/schedulerPrompt";
+import { buildLocalSystemPrompt, formatTasksForPrompt } from "@/lib/schedulerPrompt";
 import { toast } from "sonner";
 
 interface ScheduleEntry {
@@ -12,26 +12,73 @@ interface ScheduleEntry {
   fragment_minutes: number;
 }
 
-function parseScheduleFromResponse(result: any): ScheduleEntry[] {
-  const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
-  if (!toolCall) throw new Error("No tool call in LLM response");
-  const parsed = JSON.parse(toolCall.function.arguments);
-  return parsed.schedule || parsed;
+const LOCAL_LLM_DEFAULT_ENDPOINT = "http://localhost:1234/v1/chat/completions";
+
+function normalizeLocalEndpoint(endpoint?: string | null) {
+  const trimmed = endpoint?.trim();
+
+  if (!trimmed) return LOCAL_LLM_DEFAULT_ENDPOINT;
+  if (/\/v1\/chat\/completions\/?$/i.test(trimmed)) return trimmed;
+  if (/\/v1\/?$/i.test(trimmed)) return `${trimmed.replace(/\/$/, "")}/chat/completions`;
+  if (/^https?:\/\/[^/]+(?::\d+)?\/?$/i.test(trimmed)) return `${trimmed.replace(/\/$/, "")}/v1/chat/completions`;
+
+  return trimmed;
+}
+
+function parseSchedulePayload(parsed: unknown): ScheduleEntry[] {
+  if (Array.isArray(parsed)) return parsed as ScheduleEntry[];
+  if (parsed && typeof parsed === "object" && Array.isArray((parsed as { schedule?: unknown }).schedule)) {
+    return (parsed as { schedule: ScheduleEntry[] }).schedule;
+  }
+
+  throw new Error("LLM response did not contain a valid schedule array");
+}
+
+function extractMessageText(content: unknown): string {
+  if (typeof content === "string") return content;
+
+  if (Array.isArray(content)) {
+    return content
+      .map((part) => {
+        if (typeof part === "string") return part;
+        if (part && typeof part === "object" && "text" in part && typeof part.text === "string") {
+          return part.text;
+        }
+        return "";
+      })
+      .join("\n")
+      .trim();
+  }
+
+  return "";
 }
 
 function extractJsonFromText(text: string): ScheduleEntry[] {
-  // Try to find JSON array in markdown code blocks first
-  const codeBlockMatch = text.match(/```(?:json)?\s*\n?([\s\S]*?)\n?```/);
-  const jsonStr = codeBlockMatch ? codeBlockMatch[1].trim() : text.trim();
+  let cleaned = text
+    .replace(/```json\s*/gi, "")
+    .replace(/```\s*/g, "")
+    .trim();
 
-  // Find the first [ and last ] to extract the array
-  const start = jsonStr.indexOf("[");
-  const end = jsonStr.lastIndexOf("]");
-  if (start === -1 || end === -1) throw new Error("No JSON array found in LLM response");
+  const firstArray = cleaned.indexOf("[");
+  const firstObject = cleaned.indexOf("{");
+  const useArray = firstArray !== -1 && (firstObject === -1 || firstArray < firstObject);
+  const start = useArray ? firstArray : firstObject;
+  const end = useArray ? cleaned.lastIndexOf("]") : cleaned.lastIndexOf("}");
 
-  const parsed = JSON.parse(jsonStr.substring(start, end + 1));
-  if (!Array.isArray(parsed)) throw new Error("LLM response is not an array");
-  return parsed;
+  if (start === -1 || end === -1) throw new Error("No JSON found in LLM response");
+
+  cleaned = cleaned.slice(start, end + 1);
+
+  try {
+    return parseSchedulePayload(JSON.parse(cleaned));
+  } catch {
+    const sanitized = cleaned
+      .replace(/,\s*}/g, "}")
+      .replace(/,\s*]/g, "]")
+      .replace(/[\x00-\x1F\x7F]/g, "");
+
+    return parseSchedulePayload(JSON.parse(sanitized));
+  }
 }
 
 export function useAiScheduler() {
@@ -51,36 +98,52 @@ export function useAiScheduler() {
 
     const today = new Date().toISOString().split("T")[0];
     const taskList = formatTasksForPrompt(tasks);
-    const endpoint = llmConfig?.local_api_endpoint || "http://localhost:1234/v1/chat/completions";
+    const endpoint = normalizeLocalEndpoint(llmConfig?.local_api_endpoint);
     const model = llmConfig?.local_model || "llama3";
+    const messages = [
+      { role: "system", content: buildLocalSystemPrompt(today) },
+      { role: "user", content: `Here are the tasks to schedule:\n${JSON.stringify(taskList, null, 2)}` },
+    ];
+    const fallbackSingleMessage = [
+      {
+        role: "user",
+        content: `${buildLocalSystemPrompt(today)}\n\nHere are the tasks to schedule:\n${JSON.stringify(taskList, null, 2)}`,
+      },
+    ];
 
-    const response = await fetch(endpoint, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        model,
-        messages: [
-          { role: "system", content: buildLocalSystemPrompt(today) },
-          { role: "user", content: `Here are the tasks to schedule:\n${JSON.stringify(taskList, null, 2)}` },
-        ],
-      }),
-    });
+    const payloadAttempts = [
+      { model, messages, temperature: 0.2, stream: false },
+      { model, messages: fallbackSingleMessage, temperature: 0.2, stream: false },
+    ];
 
-    if (!response.ok) {
-      const text = await response.text();
-      throw new Error(`Local LLM returned ${response.status}: ${text}`);
+    let response: Response | null = null;
+    let lastErrorText = "";
+
+    for (const payload of payloadAttempts) {
+      response = await fetch(endpoint, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      if (response.ok) break;
+
+      lastErrorText = await response.text();
+      if (!/messages|content|role/i.test(lastErrorText)) break;
+    }
+
+    if (!response || !response.ok) {
+      throw new Error(`Local LLM returned ${response?.status ?? "unknown"}: ${lastErrorText || "Empty response"}`);
     }
 
     const result = await response.json();
 
-    // Try tool_calls first (for local servers that support it), then fall back to content parsing
     const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
     if (toolCall) {
-      const parsed = JSON.parse(toolCall.function.arguments);
-      return parsed.schedule || parsed;
+      return parseSchedulePayload(JSON.parse(toolCall.function.arguments));
     }
 
-    const content = result.choices?.[0]?.message?.content;
+    const content = extractMessageText(result.choices?.[0]?.message?.content);
     if (content) {
       return extractJsonFromText(content);
     }

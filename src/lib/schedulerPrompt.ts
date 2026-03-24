@@ -38,6 +38,10 @@ Rules:
 - Return fragments as separate entries with the SAME task id but different dates/times and a "fragment_minutes" field
 - Keep total fragment_minutes equal to the original time_estimate
 - Consider task descriptions for urgency clues
+- Return ONLY valid JSON with double-quoted keys and string values where appropriate
+- Do NOT wrap the JSON in markdown
+- Do NOT add explanations, notes, or reasoning
+- If tool calling is unavailable, respond directly with the JSON array
 
 You MUST respond with ONLY a JSON array, no extra text, no markdown formatting. Example format:
 [{"task_id":"uuid","scheduled_date":"YYYY-MM-DD","scheduled_start_time":"HH:MM:SS","fragment_minutes":60}]`;

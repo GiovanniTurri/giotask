@@ -7,6 +7,34 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+function extractJsonFromText(text: string) {
+  let cleaned = text
+    .replace(/```json\s*/gi, "")
+    .replace(/```\s*/g, "")
+    .trim();
+
+  const firstArray = cleaned.indexOf("[");
+  const firstObject = cleaned.indexOf("{");
+  const useArray = firstArray !== -1 && (firstObject === -1 || firstArray < firstObject);
+  const start = useArray ? firstArray : firstObject;
+  const end = useArray ? cleaned.lastIndexOf("]") : cleaned.lastIndexOf("}");
+
+  if (start === -1 || end === -1) throw new Error("No JSON found in LLM response");
+
+  cleaned = cleaned.slice(start, end + 1);
+
+  try {
+    return JSON.parse(cleaned);
+  } catch {
+    return JSON.parse(
+      cleaned
+        .replace(/,\s*}/g, "}")
+        .replace(/,\s*]/g, "]")
+        .replace(/[\x00-\x1F\x7F]/g, ""),
+    );
+  }
+}
+
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
@@ -66,8 +94,10 @@ Rules:
 - Return fragments as separate entries with the SAME task id but different dates/times and a "fragment_minutes" field
 - Keep total fragment_minutes equal to the original time_estimate
 - Consider task descriptions for urgency clues
+- If tool calling is available, use the provided tool
+- If tool calling is unavailable, return ONLY valid JSON with no markdown or explanations
 
-Return a JSON array using this tool.`;
+Return the schedule now.`;
 
     const toolDef = {
       type: "function" as const,
@@ -117,16 +147,42 @@ Return a JSON array using this tool.`;
       model = config?.cloud_model || "gpt-4";
     }
 
-    const llmResponse = await fetch(apiUrl, {
+    const requestBody = provider === "lovable"
+      ? {
+          model,
+          messages,
+          tools: [toolDef],
+          tool_choice: { type: "function", function: { name: "set_schedule" } },
+        }
+      : {
+          model,
+          messages,
+          tools: [toolDef],
+        };
+
+    let llmResponse = await fetch(apiUrl, {
       method: "POST",
       headers,
-      body: JSON.stringify({
-        model,
-        messages,
-        tools: [toolDef],
-        tool_choice: { type: "function", function: { name: "set_schedule" } },
-      }),
+      body: JSON.stringify(requestBody),
     });
+
+    if (!llmResponse.ok && provider === "cloud") {
+      const fallbackText = await llmResponse.text();
+
+      if (/tool|function|schema|response_format/i.test(fallbackText)) {
+        llmResponse = await fetch(apiUrl, {
+          method: "POST",
+          headers,
+          body: JSON.stringify({
+            model,
+            messages,
+          }),
+        });
+      } else {
+        console.error("LLM error:", llmResponse.status, fallbackText);
+        throw new Error(`LLM returned ${llmResponse.status}`);
+      }
+    }
 
     if (!llmResponse.ok) {
       const status = llmResponse.status;
@@ -148,9 +204,16 @@ Return a JSON array using this tool.`;
 
     const result = await llmResponse.json();
     const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
-    if (!toolCall) throw new Error("No tool call in LLM response");
+    const content = result.choices?.[0]?.message?.content;
+    const schedule = toolCall
+      ? JSON.parse(toolCall.function.arguments)
+      : typeof content === "string"
+        ? extractJsonFromText(content)
+        : Array.isArray(content)
+          ? extractJsonFromText(content.map((part: any) => typeof part?.text === "string" ? part.text : "").join("\n"))
+          : null;
 
-    const schedule = JSON.parse(toolCall.function.arguments);
+    if (!schedule) throw new Error("No schedule found in LLM response");
 
     return new Response(JSON.stringify(schedule), {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
