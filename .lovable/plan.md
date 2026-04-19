@@ -1,57 +1,51 @@
 
 
-## Fix Calendar Task Block Sizing and Positioning
+## Add Follow-Up Write Tasks to Calendar
 
-### Problems Identified
+### Concept
 
-**1. All tasks without a `scheduled_start_time` default to 9 AM**
-In both `WeekView` (line 37) and `DayView` (line 43), tasks with no `scheduled_start_time` are assigned to the 9 AM slot:
-```
-if (!t.scheduled_start_time) return hour === 9;
-```
-This causes all unscheduled tasks to pile into one cell.
+A "follow-up write" is a new task automatically created from a parent task (the "event"). It is scheduled some time after the parent, contains a pre-filled message body, and is visually linked to the parent in the calendar.
 
-**2. Task blocks don't visually span multiple hour rows**
-The wrapper `div` around `TaskBlock` uses `minHeight` (e.g., `${blocks * 48}px`), but it sits *inside* a single hour cell. CSS `min-height` alone doesn't make a block overflow into the next hour rows — it just stretches the current cell, pushing other tasks down within the same slot. The block never visually spans across hour boundaries.
+To answer your questions:
+- **Yes** — follow-ups should display as separate calendar entries, visually distinct (a dashed border + envelope icon) and grouped with their parent via a shared `parent_task_id`.
+- **Yes** — multiple follow-ups per parent are supported; each row in the dialog represents one follow-up with its own delay + message.
 
-**3. `TaskBlock` itself has no height awareness**
-`TaskBlock` is a simple `truncate` div with padding. It doesn't fill its parent's height, so even the `minHeight` on the wrapper has limited visual effect — the colored block appears small regardless.
+### Data Model
 
-### Solution
+Add columns to the existing `tasks` table (no new table — keeps it simple):
+- `parent_task_id uuid` — points to the parent task (null for normal tasks)
+- `task_kind text` default `'task'` — values: `'task'`, `'follow_up'`
+- `follow_up_message text` — pre-filled draft message body
 
-Switch to **absolute positioning** within a time-grid layout, similar to how Google Calendar renders events. Each task gets a `top` (based on start minute) and `height` (based on duration) computed in pixels relative to the hour-row height.
+A migration will add these columns.
 
-### Changes
+### UX Flow
 
-**1. `src/components/calendar/WeekView.tsx`**
-- Set each hour row to a fixed height (e.g., 60px) instead of `min-h-[52px]`.
-- Make the day column cells `position: relative` with full height.
-- Remove per-hour task filtering. Instead, render all tasks for the day once in a single overlay container.
-- Position each task with `position: absolute`, computing `top` from `(startHour - firstHour) * rowHeight + (startMinute / 60) * rowHeight` and `height` from `(time_estimate / 60) * rowHeight`.
-- For tasks without `scheduled_start_time`, default to 9:00 but keep the visual sizing correct.
-- Handle overlapping tasks by giving them partial width offsets.
+**1. TaskDialog gets a new "Follow-up writes" section** (visible only for non-follow-up tasks):
+- Toggle "Add follow-up write" reveals a list editor
+- Each row: delay preset (`1 week after`, `2 weeks after`, `1 month after`, `Custom date`), suggested message textarea (auto-prefilled with `"Hi {tag name}, hope everything went well after our {title}!"`), remove button
+- "+ Add another follow-up" button for multiple entries
+- On save: parent task is created/updated, then each follow-up is upserted as a separate task with `parent_task_id`, `task_kind='follow_up'`, `scheduled_date` computed from parent + delay, `time_estimate=15`, title `"Follow up: {parent title}"`
 
-**2. `src/components/calendar/DayView.tsx`**
-- Same absolute-positioning approach as WeekView.
-- Use the wider single-column layout to render tasks with full width.
+**2. Calendar visual linking**:
+- `TaskBlock` adds a dashed border + small envelope icon when `task_kind='follow_up'`
+- Hovering shows the parent title in the tooltip
+- Same client tag color as parent for visual grouping
 
-**3. `src/components/calendar/TaskBlock.tsx`**
-- Add `h-full` so the component fills whatever height its parent provides.
-- Remove `truncate` when not in compact mode, allow text wrapping for tall blocks.
-- Show start time on the block when there's enough space.
-
-### Technical Details
-
-```
-Row height constant: 60px
-Task top = (taskStartHour - FIRST_HOUR) * 60 + (taskStartMinutes / 60) * 60
-Task height = (time_estimate / 60) * 60  (min 20px)
-```
-
-Each day column becomes a single `relative` container spanning all hours, with tasks absolutely positioned inside. Hour grid lines are rendered as background borders.
+**3. TaskCard on the Tasks page**:
+- Shows envelope icon + "Follow-up to: {parent title}" when applicable
+- Parent task shows badge "{N} follow-ups scheduled" with a small expand to preview them
 
 ### Files Modified
-- `src/components/calendar/WeekView.tsx` — absolute positioning for tasks
-- `src/components/calendar/DayView.tsx` — absolute positioning for tasks  
-- `src/components/calendar/TaskBlock.tsx` — fill parent height, show time
+
+- **DB migration** — add `parent_task_id`, `task_kind`, `follow_up_message` to `tasks`
+- **`src/components/TaskDialog.tsx`** — add follow-up editor section + creation logic
+- **`src/components/calendar/TaskBlock.tsx`** — dashed border + envelope icon for follow-ups
+- **`src/components/TaskCard.tsx`** — show follow-up linkage and count
+- **`src/hooks/useTasks.ts`** — minor: include new fields (auto via regenerated types)
+
+### Out of Scope (can add later)
+- Sending the actual message (this is a writing reminder, not an email-sender)
+- Recurring follow-up cascades
+- Editing the parent does not retroactively shift existing follow-up dates
 
