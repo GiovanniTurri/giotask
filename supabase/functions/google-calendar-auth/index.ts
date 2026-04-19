@@ -72,6 +72,16 @@ serve(async (req) => {
         });
       }
 
+      // Verify the granted scopes include calendar access
+      const grantedScopes = (tokens.scope || "") as string;
+      if (!grantedScopes.includes("calendar")) {
+        console.error("Calendar scope not granted. Granted:", grantedScopes);
+        return new Response(
+          redirectHtml(appOrigin, `error=${encodeURIComponent("calendar_scope_not_granted")}`),
+          { headers: { "Content-Type": "text/html" } }
+        );
+      }
+
       // Get user email
       const userInfoRes = await fetch(GOOGLE_USERINFO_URL, {
         headers: { Authorization: `Bearer ${tokens.access_token}` },
