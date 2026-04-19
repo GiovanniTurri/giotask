@@ -1,51 +1,67 @@
-
-
-## Add Follow-Up Write Tasks to Calendar
+## Plan: Age-Based Task Color Indicators
 
 ### Concept
 
-A "follow-up write" is a new task automatically created from a parent task (the "event"). It is scheduled some time after the parent, contains a pre-filled message body, and is visually linked to the parent in the calendar.
+Tasks that have been **scheduled but not completed** for a long time should visually "age" — turning warmer/more urgent colors as they sit untouched on the calendar. This applies to tasks where `scheduled_date` is in the past (overdue) relative to today.
 
-To answer your questions:
-- **Yes** — follow-ups should display as separate calendar entries, visually distinct (a dashed border + envelope icon) and grouped with their parent via a shared `parent_task_id`.
-- **Yes** — multiple follow-ups per parent are supported; each row in the dialog represents one follow-up with its own delay + message.
+### Color Tiers
 
-### Data Model
 
-Add columns to the existing `tasks` table (no new table — keeps it simple):
-- `parent_task_id uuid` — points to the parent task (null for normal tasks)
-- `task_kind text` default `'task'` — values: `'task'`, `'follow_up'`
-- `follow_up_message text` — pre-filled draft message body
+| Age (days past `scheduled_date`) | Color             | Meaning              |
+| -------------------------------- | ----------------- | -------------------- |
+| 0–6 days overdue                 | Default tag color | Fresh / on track     |
+| 7–13 days overdue                | Amber tint        | Needs attention      |
+| 14–20 days overdue               | Orange tint       | Getting stale        |
+| 21+ days overdue                 | Red tint          | Critical / abandoned |
 
-A migration will add these columns.
 
-### UX Flow
+Done tasks are excluded (they keep the dimmed/strikethrough style).
+Follow-up tasks follow the same rules but keep their dashed border.
 
-**1. TaskDialog gets a new "Follow-up writes" section** (visible only for non-follow-up tasks):
-- Toggle "Add follow-up write" reveals a list editor
-- Each row: delay preset (`1 week after`, `2 weeks after`, `1 month after`, `Custom date`), suggested message textarea (auto-prefilled with `"Hi {tag name}, hope everything went well after our {title}!"`), remove button
-- "+ Add another follow-up" button for multiple entries
-- On save: parent task is created/updated, then each follow-up is upserted as a separate task with `parent_task_id`, `task_kind='follow_up'`, `scheduled_date` computed from parent + delay, `time_estimate=15`, title `"Follow up: {parent title}"`
+### Implementation Approach
 
-**2. Calendar visual linking**:
-- `TaskBlock` adds a dashed border + small envelope icon when `task_kind='follow_up'`
-- Hovering shows the parent title in the tooltip
-- Same client tag color as parent for visual grouping
+Rather than running a daily database job (which would mutate user data and conflict with the tag-based color system), we compute the "age color" **on the client at render time**. This way:
 
-**3. TaskCard on the Tasks page**:
-- Shows envelope icon + "Follow-up to: {parent title}" when applicable
-- Parent task shows badge "{N} follow-ups scheduled" with a small expand to preview them
+- It updates automatically every day with no cron needed
+- The user's chosen tag colors are preserved in the database
+- Aging works on every view (calendar + task list) consistently
+
+### Changes
+
+**1. New helper: `src/lib/taskAge.ts**`
+
+- `getTaskAgeStatus(scheduled_date, status)` returns `'fresh' | 'warn7' | 'warn14' | 'critical21'`
+- `getAgeColor(status)` returns an HSL color override for warn/critical tiers
+- Returns `null` for fresh or done tasks (use default tag color)
+
+**2. `src/index.css**`
+
+- Add semantic CSS tokens: `--task-age-warn` (amber), `--task-age-stale` (orange), `--task-age-critical` (red) in both light and dark theme blocks
+
+**3. `src/components/calendar/TaskBlock.tsx**`
+
+- Apply age color override to `backgroundColor` and `borderLeft` when age status is not fresh
+- Keep follow-up dashed border behavior intact
+- Tooltip appends "Overdue X days" when applicable
+
+**4. `src/components/TaskCard.tsx**`
+
+- Add a small colored dot or left border stripe matching the age tier
+- Add a subtle "Overdue Nd" badge for warn14 and critical21
+
+**5. Optional legend in calendar header** *(small, can skip if you prefer minimal UI)*
+
+- A compact legend chip showing the 3 age colors with labels
 
 ### Files Modified
 
-- **DB migration** — add `parent_task_id`, `task_kind`, `follow_up_message` to `tasks`
-- **`src/components/TaskDialog.tsx`** — add follow-up editor section + creation logic
-- **`src/components/calendar/TaskBlock.tsx`** — dashed border + envelope icon for follow-ups
-- **`src/components/TaskCard.tsx`** — show follow-up linkage and count
-- **`src/hooks/useTasks.ts`** — minor: include new fields (auto via regenerated types)
+- `src/lib/taskAge.ts` (new)
+- `src/index.css` — add 3 semantic color tokens
+- `src/components/calendar/TaskBlock.tsx` — apply age color
+- `src/components/TaskCard.tsx` — add age indicator
 
-### Out of Scope (can add later)
-- Sending the actual message (this is a writing reminder, not an email-sender)
-- Recurring follow-up cascades
-- Editing the parent does not retroactively shift existing follow-up dates
+### Out of Scope
 
+- Daily background job (not needed — colors recompute on every render based on today's date)
+- Notifications/emails for overdue tasks (can add later)
+- Per-user threshold customization (uses fixed 7/14/21 day tiers)
