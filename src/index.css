@@ -47,6 +47,10 @@
 
     --success: 152 60% 40%;
     --warning: 38 92% 50%;
+
+    --task-age-warn: 45 93% 47%;
+    --task-age-stale: 25 95% 53%;
+    --task-age-critical: 0 84% 55%;
   }
 
   .dark {
@@ -89,6 +93,10 @@
 
     --success: 152 60% 40%;
     --warning: 38 92% 50%;
+
+    --task-age-warn: 45 93% 55%;
+    --task-age-stale: 25 95% 58%;
+    --task-age-critical: 0 75% 60%;
   }
 }
 
