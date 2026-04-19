@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Clock, Calendar, Pencil, Trash2, Mail, ChevronDown, ChevronRight } from "lucide-react";
+import { Clock, Calendar, Pencil, Trash2, Mail, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
 import { useDeleteTask, useUpdateTask } from "@/hooks/useTasks";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
+import { getTaskAgeStatus, getAgeColor, getAgeLabel } from "@/lib/taskAge";
 
 interface TaskCardProps {
   task: any;
@@ -69,9 +70,19 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
   };
 
   const tag = task.client_tags;
+  const { status: ageStatus, daysOverdue } = getTaskAgeStatus(task.scheduled_date, task.status);
+  const ageColor = getAgeColor(ageStatus);
+  const ageLabel = getAgeLabel(ageStatus);
 
   return (
-    <Card className={cn("border-l-4 p-4 transition-shadow hover:shadow-md", statusStyles[task.status] || "border-l-muted", isFollowUp && "border-dashed")}>
+    <Card
+      className={cn(
+        "border-l-4 p-4 transition-shadow hover:shadow-md",
+        !ageColor && (statusStyles[task.status] || "border-l-muted"),
+        isFollowUp && "border-dashed"
+      )}
+      style={ageColor ? { borderLeftColor: ageColor } : undefined}
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
@@ -82,6 +93,15 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
             {tag && (
               <Badge className="text-[10px] px-1.5 py-0" style={{ backgroundColor: tag.color, color: "#fff", borderColor: tag.color }}>
                 {tag.name}
+              </Badge>
+            )}
+            {ageLabel && (
+              <Badge
+                className="text-[10px] px-1.5 py-0 gap-1 border-transparent text-white"
+                style={{ backgroundColor: ageColor! }}
+              >
+                <AlertTriangle className="h-2.5 w-2.5" />
+                {daysOverdue}d overdue
               </Badge>
             )}
             {!isFollowUp && followUps.length > 0 && (
