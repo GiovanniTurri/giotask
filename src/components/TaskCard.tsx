@@ -1,8 +1,10 @@
+import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Clock, Calendar, Pencil, Trash2 } from "lucide-react";
+import { Clock, Calendar, Pencil, Trash2, Mail, ChevronDown, ChevronRight } from "lucide-react";
 import { useDeleteTask, useUpdateTask } from "@/hooks/useTasks";
+import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
 
@@ -27,6 +29,30 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
   const deleteTask = useDeleteTask();
   const updateTask = useUpdateTask();
 
+  const isFollowUp = task.task_kind === "follow_up";
+  const [parentTitle, setParentTitle] = useState<string | null>(null);
+  const [followUps, setFollowUps] = useState<Array<{ id: string; title: string; scheduled_date: string | null; follow_up_message: string | null }>>([]);
+  const [expanded, setExpanded] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    if (isFollowUp && task.parent_task_id) {
+      supabase.from("tasks").select("title").eq("id", task.parent_task_id).maybeSingle().then(({ data }) => {
+        if (!cancelled && data) setParentTitle(data.title);
+      });
+    } else if (!isFollowUp) {
+      supabase
+        .from("tasks")
+        .select("id, title, scheduled_date, follow_up_message")
+        .eq("parent_task_id", task.id)
+        .order("scheduled_date", { ascending: true })
+        .then(({ data }) => {
+          if (!cancelled && data) setFollowUps(data as any);
+        });
+    }
+    return () => { cancelled = true; };
+  }, [task.id, task.parent_task_id, isFollowUp]);
+
   const handleDelete = async () => {
     try {
       await deleteTask.mutateAsync(task.id);
@@ -45,10 +71,11 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
   const tag = task.client_tags;
 
   return (
-    <Card className={cn("border-l-4 p-4 transition-shadow hover:shadow-md", statusStyles[task.status] || "border-l-muted")}>
+    <Card className={cn("border-l-4 p-4 transition-shadow hover:shadow-md", statusStyles[task.status] || "border-l-muted", isFollowUp && "border-dashed")}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0">
           <div className="flex items-center gap-2 flex-wrap mb-1">
+            {isFollowUp && <Mail className="h-3.5 w-3.5 text-muted-foreground shrink-0" />}
             <h3 className={cn("font-semibold text-sm", task.status === "done" && "line-through text-muted-foreground")}>
               {task.title}
             </h3>
@@ -57,9 +84,27 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
                 {tag.name}
               </Badge>
             )}
+            {!isFollowUp && followUps.length > 0 && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0 gap-1">
+                <Mail className="h-2.5 w-2.5" />
+                {followUps.length} follow-up{followUps.length > 1 ? "s" : ""}
+              </Badge>
+            )}
           </div>
 
-          {task.description && (
+          {isFollowUp && parentTitle && (
+            <p className="text-xs text-muted-foreground mb-1">
+              Follow-up to: <span className="font-medium">{parentTitle}</span>
+            </p>
+          )}
+
+          {isFollowUp && task.follow_up_message && (
+            <p className="text-xs italic text-muted-foreground mb-2 border-l-2 border-muted pl-2">
+              "{task.follow_up_message}"
+            </p>
+          )}
+
+          {!isFollowUp && task.description && (
             <p className="text-xs text-muted-foreground line-clamp-2 mb-2">{task.description}</p>
           )}
 
@@ -77,7 +122,32 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
             <button onClick={cycleStatus} className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted hover:bg-muted/80 transition-colors">
               {statusLabels[task.status]}
             </button>
+            {!isFollowUp && followUps.length > 0 && (
+              <button
+                onClick={() => setExpanded(e => !e)}
+                className="flex items-center gap-0.5 text-[10px] hover:text-foreground transition-colors"
+              >
+                {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
+                {expanded ? "Hide" : "Show"} follow-ups
+              </button>
+            )}
           </div>
+
+          {!isFollowUp && expanded && followUps.length > 0 && (
+            <div className="mt-3 space-y-1.5 pl-3 border-l border-dashed border-border">
+              {followUps.map(fu => (
+                <div key={fu.id} className="text-xs">
+                  <div className="flex items-center gap-1.5 text-muted-foreground">
+                    <Mail className="h-3 w-3" />
+                    <span>{fu.scheduled_date ? new Date(fu.scheduled_date).toLocaleDateString() : "Unscheduled"}</span>
+                  </div>
+                  {fu.follow_up_message && (
+                    <p className="italic text-muted-foreground/80 truncate ml-4.5 pl-1">"{fu.follow_up_message}"</p>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         <div className="flex items-center gap-1 shrink-0">
