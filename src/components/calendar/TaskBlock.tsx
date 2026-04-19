@@ -1,6 +1,7 @@
 import { cn } from "@/lib/utils";
 import { Mail } from "lucide-react";
 import type { Task } from "@/hooks/useTasks";
+import { getTaskAgeStatus, getAgeColor, getAgeLabel } from "@/lib/taskAge";
 
 interface TaskBlockProps {
   task: Task & {
@@ -16,12 +17,17 @@ interface TaskBlockProps {
 }
 
 export function TaskBlock({ task, compact = false, showTime = false, onDragStart, onClick }: TaskBlockProps) {
-  const tagColor = task.client_tags?.color || "hsl(var(--primary))";
   const isFollowUp = (task as any).task_kind === "follow_up";
+  const { status: ageStatus, daysOverdue } = getTaskAgeStatus(task.scheduled_date, task.status);
+  const ageColor = getAgeColor(ageStatus);
+  const ageLabel = getAgeLabel(ageStatus);
 
+  const baseColor = ageColor || task.client_tags?.color || "hsl(var(--primary))";
+
+  const overdueText = ageLabel ? `\n⚠ ${ageLabel} (${daysOverdue}d overdue)` : "";
   const titleAttr = isFollowUp
-    ? `✉ Follow-up: ${task.title}${task.follow_up_message ? `\n"${task.follow_up_message}"` : ""}`
-    : `${task.title} (${task.time_estimate}m)`;
+    ? `✉ Follow-up: ${task.title}${task.follow_up_message ? `\n"${task.follow_up_message}"` : ""}${overdueText}`
+    : `${task.title} (${task.time_estimate}m)${overdueText}`;
 
   return (
     <div
@@ -35,9 +41,11 @@ export function TaskBlock({ task, compact = false, showTime = false, onDragStart
         task.status === "done" && "opacity-50 line-through"
       )}
       style={{
-        backgroundColor: tagColor + (isFollowUp ? "11" : "22"),
-        borderLeft: `3px solid ${tagColor}`,
-        ...(isFollowUp ? { borderColor: tagColor } : {}),
+        backgroundColor: ageColor
+          ? `color-mix(in hsl, ${baseColor} 35%, transparent)`
+          : baseColor + (isFollowUp ? "11" : "22"),
+        borderLeft: `3px solid ${baseColor}`,
+        ...(isFollowUp ? { borderColor: baseColor } : {}),
         color: "hsl(var(--foreground))",
       }}
       title={titleAttr}
@@ -57,6 +65,7 @@ export function TaskBlock({ task, compact = false, showTime = false, onDragStart
             {showTime && task.scheduled_start_time
               ? `${task.scheduled_start_time.slice(0, 5)} · ${task.time_estimate}m`
               : `${task.time_estimate}m`}
+            {ageLabel && ` · ${daysOverdue}d overdue`}
           </span>
         </div>
       )}
