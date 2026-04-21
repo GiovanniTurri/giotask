@@ -66,6 +66,8 @@ export function TaskDialog({ open, onOpenChange, task }: TaskDialogProps) {
   const [status, setStatus] = useState("todo");
   const [clientTagId, setClientTagId] = useState<string | null>(null);
   const [scheduledDate, setScheduledDate] = useState("");
+  const [scheduledStartTime, setScheduledStartTime] = useState("");
+  const [reminderMinutes, setReminderMinutes] = useState<string>("default");
 
   const [followUpsEnabled, setFollowUpsEnabled] = useState(false);
   const [followUps, setFollowUps] = useState<FollowUpDraft[]>([]);
@@ -87,6 +89,9 @@ export function TaskDialog({ open, onOpenChange, task }: TaskDialogProps) {
       setStatus(task.status);
       setClientTagId(task.client_tag_id);
       setScheduledDate(task.scheduled_date || "");
+      setScheduledStartTime(task.scheduled_start_time ? task.scheduled_start_time.slice(0, 5) : "");
+      const rm = (task as any).reminder_minutes;
+      setReminderMinutes(rm == null ? "default" : rm === -1 ? "off" : String(rm));
     } else {
       setTitle("");
       setDescription("");
@@ -94,6 +99,8 @@ export function TaskDialog({ open, onOpenChange, task }: TaskDialogProps) {
       setStatus("todo");
       setClientTagId(null);
       setScheduledDate("");
+      setScheduledStartTime("");
+      setReminderMinutes("default");
       setFollowUpsEnabled(false);
       setFollowUps([]);
     }
@@ -158,6 +165,11 @@ export function TaskDialog({ open, onOpenChange, task }: TaskDialogProps) {
       return;
     }
 
+    let reminderValue: number | null = null;
+    if (reminderMinutes === "off") reminderValue = -1;
+    else if (reminderMinutes === "default") reminderValue = null;
+    else reminderValue = Number(reminderMinutes);
+
     const payload = {
       title: title.trim(),
       description,
@@ -165,6 +177,8 @@ export function TaskDialog({ open, onOpenChange, task }: TaskDialogProps) {
       status,
       client_tag_id: clientTagId,
       scheduled_date: scheduledDate || null,
+      scheduled_start_time: scheduledStartTime ? `${scheduledStartTime}:00` : null,
+      reminder_minutes: reminderValue,
     };
 
     try {
