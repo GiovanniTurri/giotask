@@ -68,6 +68,9 @@ export default function SettingsPage() {
       {/* Google Calendar Integration */}
       <GoogleCalendarSettings />
 
+      {/* Notifications */}
+      <NotificationsCard />
+
       {/* Provider Selection */}
       <Card className="p-5 space-y-4">
         <Label className="text-sm font-semibold">Active AI Provider</Label>
