@@ -172,6 +172,7 @@ export type Database = {
           id: string
           parent_task_id: string | null
           priority: number | null
+          reminder_minutes: number | null
           scheduled_date: string | null
           scheduled_start_time: string | null
           status: string
@@ -188,6 +189,7 @@ export type Database = {
           id?: string
           parent_task_id?: string | null
           priority?: number | null
+          reminder_minutes?: number | null
           scheduled_date?: string | null
           scheduled_start_time?: string | null
           status?: string
@@ -204,6 +206,7 @@ export type Database = {
           id?: string
           parent_task_id?: string | null
           priority?: number | null
+          reminder_minutes?: number | null
           scheduled_date?: string | null
           scheduled_start_time?: string | null
           status?: string
@@ -228,6 +231,30 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      user_settings: {
+        Row: {
+          created_at: string
+          default_reminder_minutes: number | null
+          id: string
+          notifications_enabled: boolean | null
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          default_reminder_minutes?: number | null
+          id?: string
+          notifications_enabled?: boolean | null
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          default_reminder_minutes?: number | null
+          id?: string
+          notifications_enabled?: boolean | null
+          updated_at?: string
+        }
+        Relationships: []
       }
     }
     Views: {
