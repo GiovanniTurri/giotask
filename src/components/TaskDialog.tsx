@@ -322,6 +322,36 @@ export function TaskDialog({ open, onOpenChange, task }: TaskDialogProps) {
             </div>
           </div>
 
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="time">Start Time</Label>
+              <Input
+                id="time"
+                type="time"
+                value={scheduledStartTime}
+                onChange={e => setScheduledStartTime(e.target.value)}
+                disabled={!scheduledDate}
+              />
+            </div>
+            <div className="space-y-2">
+              <Label>Reminder</Label>
+              <Select value={reminderMinutes} onValueChange={setReminderMinutes} disabled={!scheduledStartTime}>
+                <SelectTrigger><SelectValue /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="default">Use default</SelectItem>
+                  <SelectItem value="off">Off</SelectItem>
+                  <SelectItem value="0">At start time</SelectItem>
+                  <SelectItem value="5">5 min before</SelectItem>
+                  <SelectItem value="10">10 min before</SelectItem>
+                  <SelectItem value="15">15 min before</SelectItem>
+                  <SelectItem value="30">30 min before</SelectItem>
+                  <SelectItem value="60">1 hour before</SelectItem>
+                  <SelectItem value="1440">1 day before</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+
           {!isFollowUp && (
             <>
               <Separator />
