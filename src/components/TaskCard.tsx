@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
-import { Clock, Calendar, Pencil, Trash2, Mail, ChevronDown, ChevronRight, AlertTriangle } from "lucide-react";
+import { Clock, Calendar, Pencil, Trash2, Mail, ChevronDown, ChevronRight, AlertTriangle, Bell } from "lucide-react";
 import { useDeleteTask, useUpdateTask } from "@/hooks/useTasks";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
@@ -137,6 +137,13 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
               <span className="flex items-center gap-1">
                 <Calendar className="h-3 w-3" />
                 {new Date(task.scheduled_date).toLocaleDateString()}
+                {task.scheduled_start_time && ` · ${task.scheduled_start_time.slice(0, 5)}`}
+              </span>
+            )}
+            {task.reminder_minutes != null && task.scheduled_start_time && (
+              <span className="flex items-center gap-1" title={`Reminder ${task.reminder_minutes} min before`}>
+                <Bell className="h-3 w-3" />
+                {task.reminder_minutes}m
               </span>
             )}
             <button onClick={cycleStatus} className="px-1.5 py-0.5 rounded text-[10px] font-medium bg-muted hover:bg-muted/80 transition-colors">
