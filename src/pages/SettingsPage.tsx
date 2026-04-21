@@ -183,3 +183,105 @@ export default function SettingsPage() {
     </div>
   );
 }
+
+function NotificationsCard() {
+  const { data: settings } = useUserSettings();
+  const updateSettings = useUpdateUserSettings();
+  const [permission, setPermission] = useState<NotificationPermission>(
+    typeof Notification !== "undefined" ? Notification.permission : "denied"
+  );
+
+  const enable = async () => {
+    const result = await requestNotificationPermission();
+    setPermission(result);
+    if (result === "granted") toast.success("Notifications enabled");
+    else if (result === "denied") toast.error("Permission denied — enable in browser settings");
+  };
+
+  const setLead = async (v: string) => {
+    if (!settings) return;
+    await updateSettings.mutateAsync({ id: settings.id, default_reminder_minutes: Number(v) });
+    toast.success("Default reminder updated");
+  };
+
+  const toggleEnabled = async (v: boolean) => {
+    if (!settings) return;
+    await updateSettings.mutateAsync({ id: settings.id, notifications_enabled: v });
+  };
+
+  const supported = typeof Notification !== "undefined";
+
+  return (
+    <Card className="p-5 space-y-4">
+      <div className="flex items-center gap-2">
+        <Bell className="h-4 w-4 text-primary" />
+        <Label className="text-sm font-semibold">Reminder Notifications</Label>
+      </div>
+
+      {!supported && (
+        <p className="text-xs text-muted-foreground">
+          Your browser doesn't support notifications. Reminders will fall back to in-app toasts.
+        </p>
+      )}
+
+      {supported && permission !== "granted" && (
+        <div className="rounded-md border border-yellow-500/30 bg-yellow-500/10 p-3 space-y-2">
+          <p className="text-xs text-yellow-700 dark:text-yellow-300">
+            {permission === "denied"
+              ? "Notifications are blocked. Enable them in your browser settings, then reload."
+              : "Allow browser notifications to receive reminders before tasks start."}
+          </p>
+          {permission === "default" && (
+            <Button size="sm" variant="outline" onClick={enable}>
+              <Bell className="h-3.5 w-3.5 mr-1" /> Enable notifications
+            </Button>
+          )}
+        </div>
+      )}
+
+      {supported && permission === "granted" && (
+        <p className="text-xs text-muted-foreground flex items-center gap-1">
+          <Bell className="h-3 w-3" /> Notifications enabled
+        </p>
+      )}
+
+      <div className="flex items-center justify-between gap-4">
+        <Label htmlFor="notif-toggle" className="text-sm flex items-center gap-1.5 cursor-pointer">
+          {settings?.notifications_enabled ? <Bell className="h-3.5 w-3.5" /> : <BellOff className="h-3.5 w-3.5" />}
+          Send reminders
+        </Label>
+        <Switch
+          id="notif-toggle"
+          checked={!!settings?.notifications_enabled}
+          onCheckedChange={toggleEnabled}
+        />
+      </div>
+
+      <div className="space-y-2">
+        <Label className="text-xs text-muted-foreground">Default lead time (used when a task has no custom reminder)</Label>
+        <Select
+          value={String(settings?.default_reminder_minutes ?? 10)}
+          onValueChange={setLead}
+          disabled={!settings}
+        >
+          <SelectTrigger><SelectValue /></SelectTrigger>
+          <SelectContent>
+            <SelectItem value="0">At start time</SelectItem>
+            <SelectItem value="5">5 min before</SelectItem>
+            <SelectItem value="10">10 min before</SelectItem>
+            <SelectItem value="15">15 min before</SelectItem>
+            <SelectItem value="30">30 min before</SelectItem>
+            <SelectItem value="60">1 hour before</SelectItem>
+            <SelectItem value="1440">1 day before</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      <p className="text-[11px] text-muted-foreground leading-relaxed">
+        Reminders fire while this app is open in your browser or installed as an app on your phone.
+        On iOS, install to home screen first. For background reminders when the app is fully closed,
+        a native build would be required.
+      </p>
+    </Card>
+  );
+}
