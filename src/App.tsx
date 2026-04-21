@@ -10,14 +10,21 @@ import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
 import SettingsPage from "./pages/SettingsPage";
 import NotFound from "./pages/NotFound";
+import { useReminders } from "@/hooks/useReminders";
 
 const queryClient = new QueryClient();
+
+function RemindersMount() {
+  useReminders();
+  return null;
+}
 
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
       <Toaster />
       <Sonner />
+      <RemindersMount />
       <BrowserRouter>
         <div className="flex min-h-screen">
           <AppSidebar />
