@@ -5,9 +5,12 @@ import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TaskDialog } from "@/components/TaskDialog";
 import { useClientTags } from "@/hooks/useClientTags";
+import { useCoupleLifeAiSuggestions } from "@/hooks/useCoupleLifeAiSuggestions";
 import { useTasks, type TaskInsert } from "@/hooks/useTasks";
+import type { CoupleLifeAiBudget, CoupleLifeAiMood, CoupleLifeAiSuggestion, CoupleLifeAiTiming } from "@/lib/coupleLifeAiPrompt";
 import { buildCoupleLifeSuggestions, getRelativeDayLabel, type CoupleLifeSuggestion } from "@/lib/coupleLifeSuggestions";
 import { cn } from "@/lib/utils";
 
@@ -28,8 +31,12 @@ function formatTaskDate(task: any) {
 export default function CoupleLifePage() {
   const [dialogOpen, setDialogOpen] = useState(false);
   const [initialValues, setInitialValues] = useState<Partial<TaskInsert> | undefined>();
+  const [aiMood, setAiMood] = useState<CoupleLifeAiMood>("romantic");
+  const [aiBudget, setAiBudget] = useState<CoupleLifeAiBudget>("low");
+  const [aiTiming, setAiTiming] = useState<CoupleLifeAiTiming>("holiday");
   const { data: tasks, isLoading } = useTasks();
   const { data: tags } = useClientTags();
+  const { ideas: aiIdeas, isGenerating, generate } = useCoupleLifeAiSuggestions();
 
   const coupleTag = useMemo(
     () => tags?.find((tag) => COUPLE_TAG_NAMES.includes(tag.name.trim().toLowerCase())),
@@ -61,6 +68,30 @@ export default function CoupleLifePage() {
       reminder_minutes: null,
     });
     setDialogOpen(true);
+  };
+
+  const openAiSuggestion = (suggestion: CoupleLifeAiSuggestion) => {
+    setInitialValues({
+      title: suggestion.title,
+      description: `${suggestion.description}\n\nReason: ${suggestion.reason}${suggestion.occasion ? `\nOccasion: ${suggestion.occasion}` : ""}`,
+      time_estimate: suggestion.duration_minutes,
+      client_tag_id: coupleTag?.id || null,
+      scheduled_date: suggestion.suggested_date,
+      scheduled_start_time: suggestion.scheduled_start_time,
+      reminder_minutes: suggestion.reminder_minutes,
+    });
+    setDialogOpen(true);
+  };
+
+  const generateAiIdeas = () => {
+    generate(coupleTasks.map((task: any) => ({
+      title: task.title,
+      description: task.description,
+      status: task.status,
+      scheduled_date: task.scheduled_date,
+      scheduled_start_time: task.scheduled_start_time,
+      time_estimate: task.time_estimate,
+    })), { mood: aiMood, budget: aiBudget, timing: aiTiming });
   };
 
   const createBlankCoupleTask = () => {
@@ -183,6 +214,75 @@ export default function CoupleLifePage() {
 
             <div className="space-y-3">
               <h2 className="text-lg font-semibold">Suggestions</h2>
+              <Card className="border-couple/30 bg-couple-soft">
+                <CardContent className="p-4 space-y-3">
+                  <div className="flex items-start gap-2">
+                    <Sparkles className="h-4 w-4 text-couple-accent mt-0.5 shrink-0" />
+                    <div>
+                      <h3 className="font-semibold text-sm">AI creative ideas</h3>
+                      <p className="text-xs text-muted-foreground mt-1">Generate more personal activity drafts from your Couple Life history.</p>
+                    </div>
+                  </div>
+                  <div className="grid gap-2 sm:grid-cols-3">
+                    <Select value={aiMood} onValueChange={(value) => setAiMood(value as CoupleLifeAiMood)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="romantic">Romantic</SelectItem>
+                        <SelectItem value="relaxed">Relaxed</SelectItem>
+                        <SelectItem value="surprise">Surprise</SelectItem>
+                        <SelectItem value="adventurous">Adventurous</SelectItem>
+                        <SelectItem value="cozy">Cozy</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={aiBudget} onValueChange={(value) => setAiBudget(value as CoupleLifeAiBudget)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="free">Free</SelectItem>
+                        <SelectItem value="low">Low budget</SelectItem>
+                        <SelectItem value="medium">Medium</SelectItem>
+                        <SelectItem value="special">Special</SelectItem>
+                      </SelectContent>
+                    </Select>
+                    <Select value={aiTiming} onValueChange={(value) => setAiTiming(value as CoupleLifeAiTiming)}>
+                      <SelectTrigger><SelectValue /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="week">This week</SelectItem>
+                        <SelectItem value="month">This month</SelectItem>
+                        <SelectItem value="holiday">Next holiday</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <Button size="sm" onClick={generateAiIdeas} disabled={!coupleTag || isGenerating}>
+                    {isGenerating ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Sparkles className="h-3.5 w-3.5 mr-1" />}
+                    Generate creative couple ideas
+                  </Button>
+                </CardContent>
+              </Card>
+              {aiIdeas.length > 0 && (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {aiIdeas.map((suggestion) => (
+                    <Card key={suggestion.id} className="border-couple/40">
+                      <CardContent className="p-4 space-y-3">
+                        <div className="flex items-start justify-between gap-2">
+                          <div>
+                            <h3 className="font-semibold text-sm leading-snug">{suggestion.title}</h3>
+                            <p className="text-xs text-muted-foreground mt-1">{suggestion.reason}</p>
+                          </div>
+                          {suggestion.occasion && <Badge variant="outline">{suggestion.occasion}</Badge>}
+                        </div>
+                        <p className="text-xs text-muted-foreground line-clamp-2">{suggestion.description}</p>
+                        <div className="flex flex-wrap gap-3 text-xs text-muted-foreground">
+                          {suggestion.suggested_date && <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" />{getRelativeDayLabel(suggestion.suggested_date)}</span>}
+                          <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{suggestion.duration_minutes}m</span>
+                        </div>
+                        <Button variant="outline" size="sm" className="w-full" onClick={() => openAiSuggestion(suggestion)} disabled={!coupleTag}>
+                          <Plus className="h-3.5 w-3.5 mr-1" /> Create task
+                        </Button>
+                      </CardContent>
+                    </Card>
+                  ))}
+                </div>
+              )}
               <div className="grid gap-3 md:grid-cols-2">
                 {suggestions.map((suggestion) => (
                   <Card key={suggestion.id}>
