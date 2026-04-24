@@ -1,76 +1,106 @@
+## Plan: Add “Couple Life” Section
 
+### Goal
 
-## Plan: Time-of-Day Scheduling + In-App Reminder Notifications
+Create a dedicated **Couple Life** page that shows:
 
-### Part 1 — Add Hour/Minute to Tasks
+- Upcoming activities planned with your girlfriend.
+- A warm visual timeline/dashboard of those activities.
+- Suggestions for new couple activities based on past completed events and nearby holidays.
 
-Currently `TaskDialog` only edits `scheduled_date` even though the database already has a `scheduled_start_time` column (used by the AI scheduler and calendar). We'll expose it in the UI.
+### How Activities Will Be Identified
 
-**Changes in `src/components/TaskDialog.tsx`:**
-- Add a `scheduledStartTime` state (string `"HH:MM"`).
-- Load it from `task.scheduled_start_time` on open (strip seconds).
-- Render a new `<Input type="time">` next to the date picker.
-- Include `scheduled_start_time: scheduledStartTime ? scheduledStartTime + ":00" : null` in the payload.
-- Apply the same field to follow-up tasks (optional time, defaults to parent's time).
+To keep this simple and compatible with the current app, Couple Life will use the existing task/tag system:
 
-**TaskCard / TaskBlock:** already display `scheduled_start_time` when present — no change needed.
+- Activities will be tasks linked to a special client tag named **“Coppia”**.
+- If the tag does not exist yet, it can be created manually from the existing Tags manager.
+- The new page will filter tasks whose tag name matches **Couple life**.
 
----
+This avoids adding a new database structure and keeps couple activities editable through the existing task dialog.
 
-### Part 2 — In-App Reminder Notifications
+### Page Layout
 
-#### Approach: Web Notifications API (works in browser + installed PWA on Android/iOS 16.4+)
+Add a new route and sidebar item:
 
-True native push (FCM/APNs) requires Capacitor + app-store builds, which is out of scope for the current web app. The Web Notifications API covers all 3 targets the user mentioned (browser, Android via PWA, iOS via installed PWA) without backend infrastructure.
+- Sidebar: **Couple Life** with a heart icon.
+- Route: `/couple-life`.
 
-#### Mechanism
+The page will include:
 
-1. **Permission**: On first use, request `Notification.requestPermission()`.
-2. **Per-task lead time**: Add `reminder_minutes` column to `tasks` (nullable int, default `null` = no reminder). Editable in TaskDialog (dropdown: Off / 5 / 10 / 15 / 30 / 60 min, plus custom).
-3. **Global default**: Add a "Default reminder lead time" setting on the Settings page (stored in `llm_config` or a new `user_settings` row — we'll add a small `user_settings` table).
-4. **Scheduler hook** (`src/hooks/useReminders.ts`, new):
-   - On app load and whenever tasks change, query all tasks with `scheduled_date + scheduled_start_time + reminder_minutes` in the future.
-   - For each, compute fire time = `scheduledDateTime - reminder_minutes`.
-   - Use `setTimeout` for reminders due within the next 24h; re-evaluate every hour.
-   - Track fired reminder IDs in `localStorage` to avoid duplicates across reloads.
-   - Fire via `new Notification(title, { body, icon, tag: task.id })`.
-5. **Fallback**: If permission denied or browser unsupported, show a toast at fire time while the app is open.
+1. **Header summary**
+  - Number of upcoming couple activities.
+  - Next planned activity date/time.
+  - Count of completed couple activities.
+2. **Upcoming activities visualization**
+  - A visually distinct card/grid showing the next activities ordered by date.
+  - Each card shows title, date, time, duration, status, and optional description.
+  - A small “days until” label such as “in 3 days”, “tomorrow”, or “today”.
+3. **Mini timeline**
+  - A chronological strip/list for the next few scheduled couple activities.
+  - Helps quickly see what is coming soon.
+4. **Past memories / done events**
+  - Show recent completed Couple Life tasks.
+  - These are used as signals for suggestions.
+5. **Suggestions section**
+  - Generate simple suggestions from:
+    - Past completed couple activities.
+    - Upcoming holidays/seasonal moments.
+    - General date/activity categories.
+  - Suggestions will be displayed as cards with a reason, e.g.:
+    - “You enjoyed dinner plans before — plan a cozy dinner around Valentine’s Day.”
+    - “A weekend walk could fit near Easter/spring.”
 
-#### Limitations (will be communicated to the user)
-- Web notifications only fire while the browser/PWA is at least running in the background. For reminders that fire when the app is fully closed, a native build (Capacitor + FCM/APNs) or a server-side push is required — we can plan that as a follow-up.
-- iOS requires the app be **installed to home screen** for notifications to work.
+### Holiday-Aware Suggestions
 
----
+Add a lightweight local holiday helper. No external API is needed initially.
 
-### Database Changes
+Included holiday/seasonal anchors:
 
-```sql
-ALTER TABLE tasks ADD COLUMN reminder_minutes integer;
+- Valentine’s Day
+- International Women’s Day
+- Easter period / spring weekend ideas
+- Anniversary-style generic suggestion if past activity titles mention “anniversary”
+- Summer picnic / beach walk period
+- Halloween cozy activity
+- Christmas / New Year dates
+- Birthday-style suggestion if past titles mention “birthday”
+- 23rd and 25th April
 
-CREATE TABLE user_settings (
-  id uuid PRIMARY KEY DEFAULT gen_random_uuid(),
-  default_reminder_minutes integer DEFAULT 10,
-  created_at timestamptz DEFAULT now(),
-  updated_at timestamptz DEFAULT now()
-);
-ALTER TABLE user_settings ENABLE ROW LEVEL SECURITY;
-CREATE POLICY "Allow all on user_settings" ON user_settings FOR ALL USING (true) WITH CHECK (true);
-```
+The suggestions will prioritize holidays within the next 90 days, plus recurring ideas inferred from completed tasks.
 
----
+### Create Task From Suggestion
 
-### Files Modified / Created
+Each suggestion card will have a **“Create task”** button that opens the existing `TaskDialog` prefilled with:
 
-- `supabase/migrations/<new>.sql` — schema above
-- `src/components/TaskDialog.tsx` — add time input + reminder dropdown
-- `src/hooks/useReminders.ts` (new) — schedule + fire notifications
-- `src/hooks/useUserSettings.ts` (new) — default reminder lead time
-- `src/App.tsx` — mount `useReminders()` once at root
-- `src/pages/SettingsPage.tsx` — "Notifications" section: enable button + default lead time selector
-- `src/components/TaskCard.tsx` — small bell icon + "in Xm" badge when reminder set
+- Suggested title.
+- Suggested description.
+- The Couple Life tag if available.
+- A suggested date when the suggestion is holiday-linked.
+- Default duration, such as 90 minutes.
+
+If the Couple Life tag is missing, the page will show a small callout telling you to create it in Tags first.
+
+### Technical Details
+
+Files to add/modify:
+
+- `src/pages/CoupleLifePage.tsx` — new main page.
+- `src/lib/coupleLifeSuggestions.ts` — local suggestion and holiday logic.
+- `src/App.tsx` — add `/couple-life` route.
+- `src/components/AppSidebar.tsx` — add Couple Life navigation item.
+- `src/components/TaskDialog.tsx` — add optional initial values/prefill support so suggestions can open the existing create task modal.
+
+Implementation notes:
+
+- Reuse `useTasks()` and `useClientTags()`.
+- No database migration is required.
+- Suggestions are computed client-side from existing tasks.
+- Existing task scheduling, reminders, and calendar behavior continue to work unchanged.
 
 ### Out of Scope
-- True background push when the app is closed (needs Capacitor / server push)
-- Snooze / dismiss actions on the notification
-- Per-tag default reminder times
 
+- Shared account access for your girlfriend.
+- Automatic holiday APIs by country/region.
+- AI-generated suggestions from a backend function.
+- Push notifications specific to Couple Life activities.
+- Separate privacy/auth model for relationship data.
