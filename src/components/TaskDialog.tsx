@@ -18,6 +18,7 @@ interface TaskDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   task?: Task | null;
+  initialValues?: Partial<Pick<TaskInsert, "title" | "description" | "time_estimate" | "client_tag_id" | "scheduled_date" | "scheduled_start_time" | "reminder_minutes">>;
 }
 
 type DelayPreset = "1w" | "2w" | "1m" | "custom";
@@ -59,7 +60,7 @@ function computeFollowUpDate(parentDate: string, fu: FollowUpDraft): string | nu
   }
 }
 
-export function TaskDialog({ open, onOpenChange, task }: TaskDialogProps) {
+export function TaskDialog({ open, onOpenChange, task, initialValues }: TaskDialogProps) {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [timeEstimate, setTimeEstimate] = useState(30);
@@ -93,14 +94,15 @@ export function TaskDialog({ open, onOpenChange, task }: TaskDialogProps) {
       const rm = (task as any).reminder_minutes;
       setReminderMinutes(rm == null ? "default" : rm === -1 ? "off" : String(rm));
     } else {
-      setTitle("");
-      setDescription("");
-      setTimeEstimate(30);
+      setTitle(initialValues?.title || "");
+      setDescription(initialValues?.description || "");
+      setTimeEstimate(initialValues?.time_estimate || 30);
       setStatus("todo");
-      setClientTagId(null);
-      setScheduledDate("");
-      setScheduledStartTime("");
-      setReminderMinutes("default");
+      setClientTagId(initialValues?.client_tag_id || null);
+      setScheduledDate(initialValues?.scheduled_date || "");
+      setScheduledStartTime(initialValues?.scheduled_start_time ? initialValues.scheduled_start_time.slice(0, 5) : "");
+      const rm = initialValues?.reminder_minutes;
+      setReminderMinutes(rm == null ? "default" : rm === -1 ? "off" : String(rm));
       setFollowUpsEnabled(false);
       setFollowUps([]);
     }
@@ -129,7 +131,7 @@ export function TaskDialog({ open, onOpenChange, task }: TaskDialogProps) {
         }
       })();
     }
-  }, [task, open]);
+  }, [task, open, initialValues]);
 
   const tagName = tags?.find(t => t.id === clientTagId)?.name;
 
