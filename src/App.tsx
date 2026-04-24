@@ -9,6 +9,7 @@ import CalendarPage from "./pages/CalendarPage";
 import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
 import SettingsPage from "./pages/SettingsPage";
+import CoupleLifePage from "./pages/CoupleLifePage";
 import NotFound from "./pages/NotFound";
 import { useReminders } from "@/hooks/useReminders";
 
@@ -32,6 +33,7 @@ const App = () => (
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/calendar" element={<CalendarPage />} />
+              <Route path="/couple-life" element={<CoupleLifePage />} />
               <Route path="/settings" element={<SettingsPage />} />
               <Route path="/privacy" element={<PrivacyPolicyPage />} />
               <Route path="/terms" element={<TermsOfServicePage />} />

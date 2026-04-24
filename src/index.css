@@ -48,6 +48,11 @@
     --success: 152 60% 40%;
     --warning: 38 92% 50%;
 
+    --couple: 345 76% 54%;
+    --couple-foreground: 0 0% 100%;
+    --couple-soft: 345 72% 95%;
+    --couple-accent: 167 72% 40%;
+
     --task-age-warn: 45 93% 47%;
     --task-age-stale: 25 95% 53%;
     --task-age-critical: 0 84% 55%;
@@ -93,6 +98,11 @@
 
     --success: 152 60% 40%;
     --warning: 38 92% 50%;
+
+    --couple: 345 76% 62%;
+    --couple-foreground: 0 0% 100%;
+    --couple-soft: 345 35% 15%;
+    --couple-accent: 167 72% 44%;
 
     --task-age-warn: 45 93% 55%;
     --task-age-stale: 25 95% 58%;
