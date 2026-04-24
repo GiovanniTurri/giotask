@@ -1,106 +1,118 @@
-## Plan: Add “Couple Life” Section
+## Recommendation
 
-### Goal
+Yes — adding LLM support here would be valuable. The current Couple Life suggestions are useful but rule-based. An LLM can make them feel more personal and creative by using your past completed couple activities, upcoming dates, holidays, task preferences, and the desired mood to propose richer activity ideas.
 
-Create a dedicated **Couple Life** page that shows:
+The best approach is to add this as an optional enhancement on the existing Couple Life page, while keeping the current non-AI suggestions as the fallback.
 
-- Upcoming activities planned with your girlfriend.
-- A warm visual timeline/dashboard of those activities.
-- Suggestions for new couple activities based on past completed events and nearby holidays.
+## Plan: AI-Enhanced Couple Task Creation
 
-### How Activities Will Be Identified
+### User Experience
 
-To keep this simple and compatible with the current app, Couple Life will use the existing task/tag system:
+Add an **AI creative ideas** area in the Couple Life page:
 
-- Activities will be tasks linked to a special client tag named **“Coppia”**.
-- If the tag does not exist yet, it can be created manually from the existing Tags manager.
-- The new page will filter tasks whose tag name matches **Couple life**.
+- A button such as **“Generate creative couple ideas”**.
+- Optional quick controls:
+  - Mood: romantic, relaxed, surprise, adventurous, cozy.
+  - Budget: free/low/medium/special.
+  - Timing: this week, this month, around next holiday.
+- The AI returns 3–5 structured suggestions.
+- Each suggestion card shows:
+  - title
+  - description
+  - reason
+  - suggested date/time if appropriate
+  - duration
+  - reminder suggestion
+  - holiday/occasion link when relevant
+- Each card keeps the existing **Create task** flow, opening `TaskDialog` prefilled with the AI idea.
 
-This avoids adding a new database structure and keeps couple activities editable through the existing task dialog.
+### Cloud + Local Support
 
-### Page Layout
+Reuse the existing Settings page LLM configuration:
 
-Add a new route and sidebar item:
+- **Lovable AI**: default built-in option, no API key needed.
+- **Cloud LLM**: use the user-configured OpenAI-compatible endpoint/model/key.
+- **Local LLM**: use the user-configured local endpoint/model directly from the browser, with the same CORS constraints already documented in Settings.
 
-- Sidebar: **Couple Life** with a heart icon.
-- Route: `/couple-life`.
+This keeps behavior consistent with the existing AI scheduler.
 
-The page will include:
+### Data Used by the AI
 
-1. **Header summary**
-  - Number of upcoming couple activities.
-  - Next planned activity date/time.
-  - Count of completed couple activities.
-2. **Upcoming activities visualization**
-  - A visually distinct card/grid showing the next activities ordered by date.
-  - Each card shows title, date, time, duration, status, and optional description.
-  - A small “days until” label such as “in 3 days”, “tomorrow”, or “today”.
-3. **Mini timeline**
-  - A chronological strip/list for the next few scheduled couple activities.
-  - Helps quickly see what is coming soon.
-4. **Past memories / done events**
-  - Show recent completed Couple Life tasks.
-  - These are used as signals for suggestions.
-5. **Suggestions section**
-  - Generate simple suggestions from:
-    - Past completed couple activities.
-    - Upcoming holidays/seasonal moments.
-    - General date/activity categories.
-  - Suggestions will be displayed as cards with a reason, e.g.:
-    - “You enjoyed dinner plans before — plan a cozy dinner around Valentine’s Day.”
-    - “A weekend walk could fit near Easter/spring.”
+The prompt will include only relevant structured context:
 
-### Holiday-Aware Suggestions
+- Upcoming Couple Life tasks.
+- Recently completed Couple Life tasks.
+- Nearby holidays already supported by the local suggestion logic.
+- The selected mood/budget/timing.
+- Existing Couple Life tag ID for prefill behavior.
 
-Add a lightweight local holiday helper. No external API is needed initially.
+The AI should not create tasks directly. It only proposes drafts; the user reviews and clicks **Create task**.
 
-Included holiday/seasonal anchors:
+### Fallback Behavior
 
-- Valentine’s Day
-- International Women’s Day
-- Easter period / spring weekend ideas
-- Anniversary-style generic suggestion if past activity titles mention “anniversary”
-- Summer picnic / beach walk period
-- Halloween cozy activity
-- Christmas / New Year dates
-- Birthday-style suggestion if past titles mention “birthday”
-- 23rd and 25th April
+If AI is unavailable or fails:
 
-The suggestions will prioritize holidays within the next 90 days, plus recurring ideas inferred from completed tasks.
+- Show a clear toast/error message.
+- Keep the existing rule-based suggestions visible.
+- Do not block normal task creation.
 
-### Create Task From Suggestion
-
-Each suggestion card will have a **“Create task”** button that opens the existing `TaskDialog` prefilled with:
-
-- Suggested title.
-- Suggested description.
-- The Couple Life tag if available.
-- A suggested date when the suggestion is holiday-linked.
-- Default duration, such as 90 minutes.
-
-If the Couple Life tag is missing, the page will show a small callout telling you to create it in Tags first.
+For local LLMs, if structured/tool output is unsupported, parse a plain JSON response similarly to the existing local scheduler fallback.
 
 ### Technical Details
 
 Files to add/modify:
 
-- `src/pages/CoupleLifePage.tsx` — new main page.
-- `src/lib/coupleLifeSuggestions.ts` — local suggestion and holiday logic.
-- `src/App.tsx` — add `/couple-life` route.
-- `src/components/AppSidebar.tsx` — add Couple Life navigation item.
-- `src/components/TaskDialog.tsx` — add optional initial values/prefill support so suggestions can open the existing create task modal.
+- `src/lib/coupleLifeAiPrompt.ts` — build provider-neutral prompts and parse/validate AI suggestion output.
+- `src/hooks/useCoupleLifeAiSuggestions.ts` — generate suggestions using the active provider.
+- `supabase/functions/generate-couple-ideas/index.ts` — backend function for Lovable AI and Cloud LLM providers.
+- `src/pages/CoupleLifePage.tsx` — add AI generation UI, loading states, and AI suggestion cards.
+- Optionally `src/lib/llmUtils.ts` — share local endpoint normalization/parsing currently duplicated in scheduler logic.
 
-Implementation notes:
+Flow:
 
-- Reuse `useTasks()` and `useClientTags()`.
-- No database migration is required.
-- Suggestions are computed client-side from existing tasks.
-- Existing task scheduling, reminders, and calendar behavior continue to work unchanged.
+```text
+Couple Life page
+  -> User chooses mood/budget/timing
+  -> Generate ideas
+      -> Lovable AI / Cloud: backend function
+      -> Local: browser request to local endpoint
+  -> Validate structured suggestions
+  -> Show suggestion cards
+  -> Create task opens TaskDialog with prefilled values
+```
+
+### Output Shape
+
+The AI response should be constrained to structured suggestions like:
+
+```text
+[
+  {
+    title,
+    description,
+    reason,
+    suggested_date,
+    scheduled_start_time,
+    duration_minutes,
+    reminder_minutes,
+    occasion
+  }
+]
+```
+
+For providers that support tool/function calling, use structured output. For local models without tool support, request strict JSON and parse defensively.
+
+### Safety and Privacy
+
+- Do not auto-create tasks from AI output.
+- Do not send unrelated tasks; only Couple Life task summaries are used.
+- Do not store generated suggestions unless the user creates a task.
+- Keep API keys on the backend for cloud providers; local LLM calls remain browser-local as currently implemented.
 
 ### Out of Scope
 
-- Shared account access for your girlfriend.
-- Automatic holiday APIs by country/region.
-- AI-generated suggestions from a backend function.
-- Push notifications specific to Couple Life activities.
-- Separate privacy/auth model for relationship data.
+- Fully autonomous date planning without review.
+- External booking, maps, restaurants, tickets, or reservations.
+- Sharing the section with your girlfriend.
+- Country-specific public holiday APIs.
+- Long-term AI memory beyond existing completed tasks.
