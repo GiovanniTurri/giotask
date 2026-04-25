@@ -1,7 +1,7 @@
 import { useState, useEffect } from "react";
 import { useLlmConfig, useUpdateLlmConfig } from "@/hooks/useLlmConfig";
 import { useUserSettings, useUpdateUserSettings } from "@/hooks/useUserSettings";
-import { requestNotificationPermission } from "@/hooks/useReminders";
+import { requestNotificationPermission, fireNotification } from "@/hooks/useReminders";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -191,6 +191,13 @@ function NotificationsCard() {
     typeof Notification !== "undefined" ? Notification.permission : "denied"
   );
 
+  // Detect iOS — Notifications only work there if installed to home screen (iOS 16.4+).
+  const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+  const isIOS = /iPad|iPhone|iPod/.test(ua) || (ua.includes("Mac") && "ontouchend" in document);
+  // @ts-expect-error - non-standard but widely supported
+  const isStandalone = typeof window !== "undefined" && (window.matchMedia?.("(display-mode: standalone)")?.matches || window.navigator.standalone);
+  const supported = typeof Notification !== "undefined";
+
   const enable = async () => {
     const result = await requestNotificationPermission();
     setPermission(result);
@@ -206,10 +213,38 @@ function NotificationsCard() {
 
   const toggleEnabled = async (v: boolean) => {
     if (!settings) return;
+    // When turning ON, auto-prompt for OS permission if still default.
+    if (v && supported && Notification.permission === "default") {
+      const result = await requestNotificationPermission();
+      setPermission(result);
+      if (result !== "granted") {
+        toast.error("Allow notifications in your browser to receive reminders");
+        // Still save the toggle so the user can fix permission later.
+      }
+    }
     await updateSettings.mutateAsync({ id: settings.id, notifications_enabled: v });
   };
 
-  const supported = typeof Notification !== "undefined";
+  const sendTest = async () => {
+    if (!supported) {
+      toast.error("Notifications not supported on this device");
+      return;
+    }
+    if (Notification.permission !== "granted") {
+      const result = await requestNotificationPermission();
+      setPermission(result);
+      if (result !== "granted") {
+        toast.error("Permission required to send a test");
+        return;
+      }
+    }
+    await fireNotification(
+      "🔔 Test reminder",
+      "If you see this, reminders are working on this device.",
+      "test-notification"
+    );
+    toast.success("Test sent — check your notification tray");
+  };
 
   return (
     <Card className="p-5 space-y-4">
@@ -218,7 +253,21 @@ function NotificationsCard() {
         <Label className="text-sm font-semibold">Reminder Notifications</Label>
       </div>
 
-      {!supported && (
+      {!supported && isIOS && !isStandalone && (
+        <div className="rounded-md border border-blue-500/30 bg-blue-500/10 p-3 text-xs text-blue-700 dark:text-blue-300 space-y-1">
+          <strong>iOS requires installation</strong>
+          <p>
+            Tap the Share button in Safari → "Add to Home Screen", then open
+            GioTask from the new home-screen icon. Notifications will become
+            available there (iOS 16.4 or later).
+          </p>
+          <p className="text-muted-foreground">
+            Inside a Safari or Chrome tab, iOS does not allow web notifications.
+          </p>
+        </div>
+      )}
+
+      {!supported && !isIOS && (
         <p className="text-xs text-muted-foreground">
           Your browser doesn't support notifications. Reminders will fall back to in-app toasts.
         </p>
@@ -240,9 +289,14 @@ function NotificationsCard() {
       )}
 
       {supported && permission === "granted" && (
-        <p className="text-xs text-muted-foreground flex items-center gap-1">
-          <Bell className="h-3 w-3" /> Notifications enabled
-        </p>
+        <div className="flex items-center justify-between gap-2">
+          <p className="text-xs text-muted-foreground flex items-center gap-1">
+            <Bell className="h-3 w-3" /> Notifications enabled
+          </p>
+          <Button size="sm" variant="outline" onClick={sendTest}>
+            Send test notification
+          </Button>
+        </div>
       )}
 
       <div className="flex items-center justify-between gap-4">
@@ -278,9 +332,11 @@ function NotificationsCard() {
       </div>
 
       <p className="text-[11px] text-muted-foreground leading-relaxed">
-        Reminders fire while this app is open in your browser or installed as an app on your phone.
-        On iOS, install to home screen first. For background reminders when the app is fully closed,
-        a native build would be required.
+        Reminders fire while this app is open in your browser, or installed as
+        an app on your phone. On iOS, install to home screen first. For background
+        delivery when the app is fully closed, a native build would be required.
+        Note: notifications are blocked inside the Lovable editor preview — test
+        on the published URL.
       </p>
     </Card>
   );
