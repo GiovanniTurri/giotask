@@ -1,4 +1,4 @@
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTasks } from "./useTasks";
 import { useUserSettings } from "./useUserSettings";
 import { toast } from "sonner";
@@ -22,15 +22,49 @@ function saveFired(map: Record<string, number>) {
   localStorage.setItem(FIRED_KEY, JSON.stringify(cleaned));
 }
 
-function fireNotification(title: string, body: string, tag: string) {
+async function getSwRegistration(): Promise<ServiceWorkerRegistration | null> {
+  if (typeof navigator === "undefined" || !("serviceWorker" in navigator)) return null;
+  try {
+    const reg = await navigator.serviceWorker.getRegistration();
+    return reg ?? null;
+  } catch {
+    return null;
+  }
+}
+
+export async function fireNotification(
+  title: string,
+  body: string,
+  tag: string,
+  data?: Record<string, unknown>
+) {
+  // Prefer the service worker — required for reliable Android notifications
+  // and for installed iOS PWAs.
   if (typeof Notification !== "undefined" && Notification.permission === "granted") {
+    const reg = await getSwRegistration();
+    if (reg && "showNotification" in reg) {
+      try {
+        await reg.showNotification(title, {
+          body,
+          tag,
+          icon: "/favicon.ico",
+          badge: "/favicon.ico",
+          data: { url: "/", ...(data || {}) },
+        });
+        return;
+      } catch (err) {
+        console.warn("SW showNotification failed, falling back:", err);
+      }
+    }
+    // Fallback: direct Notification (works on desktop browsers)
     try {
-      new Notification(title, { body, tag, icon: "/placeholder.svg" });
+      new Notification(title, { body, tag, icon: "/favicon.ico" });
       return;
     } catch {
       // fall through to toast
     }
   }
+  // Final fallback: in-app toast (works only while page is open)
   toast(title, { description: body });
 }
 
@@ -38,6 +72,7 @@ export function useReminders() {
   const { data: tasks } = useTasks();
   const { data: settings } = useUserSettings();
   const timersRef = useRef<number[]>([]);
+  const [tick, setTick] = useState(0);
 
   useEffect(() => {
     // clear any prior timers
@@ -72,7 +107,7 @@ export function useReminders() {
       const timer = window.setTimeout(() => {
         const startStr = t.scheduled_start_time?.slice(0, 5) ?? "";
         const inMin = Math.max(0, Math.round((start.getTime() - Date.now()) / 60000));
-        fireNotification(
+        void fireNotification(
           `⏰ ${t.title}`,
           inMin > 0 ? `Starts at ${startStr} (in ${inMin} min)` : `Starting now (${startStr})`,
           t.id
@@ -89,15 +124,24 @@ export function useReminders() {
       timersRef.current.forEach((id) => window.clearTimeout(id));
       timersRef.current = [];
     };
-  }, [tasks, settings]);
+  }, [tasks, settings, tick]);
 
-  // Re-evaluate every hour to pick up reminders past the 24h lookahead window
+  // Re-evaluate timers periodically and when the tab regains focus,
+  // so reminders past the 24h lookahead window get scheduled in time
+  // and devices waking from sleep recompute delays.
   useEffect(() => {
-    const interval = window.setInterval(() => {
-      // trigger by mutating a no-op state? simplest: rely on tanstack refetch on focus.
-      // Here we just no-op; tasks query already refetches on window focus.
-    }, 60 * 60 * 1000);
-    return () => window.clearInterval(interval);
+    const bump = () => setTick((n) => n + 1);
+    const interval = window.setInterval(bump, 15 * 60 * 1000); // 15 min
+    const onVisible = () => {
+      if (document.visibilityState === "visible") bump();
+    };
+    document.addEventListener("visibilitychange", onVisible);
+    window.addEventListener("focus", bump);
+    return () => {
+      window.clearInterval(interval);
+      document.removeEventListener("visibilitychange", onVisible);
+      window.removeEventListener("focus", bump);
+    };
   }, []);
 }
 

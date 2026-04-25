@@ -1,118 +1,47 @@
-## Recommendation
+## Why notifications don't work today
 
-Yes — adding LLM support here would be valuable. The current Couple Life suggestions are useful but rule-based. An LLM can make them feel more personal and creative by using your past completed couple activities, upcoming dates, holidays, task preferences, and the desired mood to propose richer activity ideas.
+Investigated `src/hooks/useReminders.ts`, `SettingsPage.tsx`, `index.html`, `main.tsx`, and `public/`. Found 4 root causes — together they explain why nothing fires on Android Chrome or iOS Chrome/Safari:
 
-The best approach is to add this as an optional enhancement on the existing Couple Life page, while keeping the current non-AI suggestions as the fallback.
+1. **No service worker.** On Android Chrome, `new Notification(...)` from a regular page is unreliable when the tab is backgrounded or the screen is off — many Android builds ignore it entirely and only `ServiceWorkerRegistration.showNotification()` actually displays a system tray notification. We never register a SW.
+2. **No PWA manifest, so iOS shows nothing at all.** On iOS (both Safari and Chrome — Chrome iOS uses WebKit), the Web Notifications API is **only exposed when the site is installed to the Home Screen as a PWA** (iOS 16.4+). Without a `manifest.webmanifest`, `Notification` is `undefined` and our code silently falls back to in-app toasts.
+3. **The user is never asked for permission outside Settings.** Many users toggle "Send reminders" without ever visiting the enable button. If the OS permission stays `default`, every reminder silently downgrades to a toast that only appears while the page is open.
+4. **No way to verify it works.** There's no "Test notification" button, so users can't tell whether the failure is permission, scheduling, or platform support.
 
-## Plan: AI-Enhanced Couple Task Creation
+Also worth knowing: notifications are blocked inside the Lovable editor preview iframe by browser permission policies. They will only really work on the published URL `https://giotask.lovable.app` (or a custom domain).
 
-### User Experience
+## What I will change
 
-Add an **AI creative ideas** area in the Couple Life page:
+### 1. Add a service worker for real system notifications
+- New file `public/sw.js` — minimal SW that handles `notificationclick` (focus/open the app) and a `SHOW_NOTIFICATION` message from the page so the page can ask the SW to display notifications.
+- Register it from `src/main.tsx` (only outside the Lovable preview iframe to avoid cache pollution, per Lovable PWA guidance).
+- Update `useReminders.ts` so `fireNotification()` prefers `swRegistration.showNotification(...)` and only falls back to `new Notification(...)` then to a toast.
 
-- A button such as **“Generate creative couple ideas”**.
-- Optional quick controls:
-  - Mood: romantic, relaxed, surprise, adventurous, cozy.
-  - Budget: free/low/medium/special.
-  - Timing: this week, this month, around next holiday.
-- The AI returns 3–5 structured suggestions.
-- Each suggestion card shows:
-  - title
-  - description
-  - reason
-  - suggested date/time if appropriate
-  - duration
-  - reminder suggestion
-  - holiday/occasion link when relevant
-- Each card keeps the existing **Create task** flow, opening `TaskDialog` prefilled with the AI idea.
+### 2. Add a minimal PWA manifest so iOS exposes the Notifications API
+- New file `public/manifest.webmanifest` with `name`, `short_name`, `start_url: "/"`, `display: "standalone"`, theme/background colors, and icons (reusing the existing favicon plus `placeholder.svg`).
+- Add `<link rel="manifest" href="/manifest.webmanifest">`, `<meta name="theme-color">`, and the iOS-specific `apple-mobile-web-app-capable` / `apple-touch-icon` tags to `index.html`.
+- This is a non-PWA "installable web app" (no offline/Workbox caching), so it won't break the Lovable preview.
 
-### Cloud + Local Support
+### 3. Prompt for permission at the right time + auto-prompt when the toggle is enabled
+- In `SettingsPage.tsx`, when the user flips "Send reminders" ON and the OS permission is still `default`, automatically call `requestNotificationPermission()` before saving the setting.
+- Show a clearer status block: explicit "Not supported on this device — install to Home Screen first" message on iOS when `Notification` is undefined, with short Italian/English instructions.
+- Add a "Send test notification" button so the user can immediately confirm it works end-to-end.
 
-Reuse the existing Settings page LLM configuration:
+### 4. Small UX/robustness fixes in `useReminders.ts`
+- When the OS permission is `default` but `notifications_enabled` is on, request permission once on mount (after a tap-driven event the next time the user interacts with the page — required by browsers).
+- Make `fireNotification()` async and route through the SW registration when available.
+- Re-evaluate timers every 15 minutes (currently the hourly interval is a no-op) and on `visibilitychange`/window focus, so reminders stay accurate after the device wakes.
 
-- **Lovable AI**: default built-in option, no API key needed.
-- **Cloud LLM**: use the user-configured OpenAI-compatible endpoint/model/key.
-- **Local LLM**: use the user-configured local endpoint/model directly from the browser, with the same CORS constraints already documented in Settings.
+## Important caveats (will be shown in Settings)
 
-This keeps behavior consistent with the existing AI scheduler.
+- **iOS**: Push/local notifications only work after the user taps Share → Add to Home Screen and opens the app from that icon. Inside Safari or Chrome iOS tab, they will never appear — this is a WebKit limitation, not a bug.
+- **Android Chrome**: Works in a normal tab once permission is granted, but the browser process must still be running in the background. For true "app-closed" delivery we'd need server-side Web Push (VAPID + push subscription) or a native build. This plan does **not** add server push — only locally-scheduled notifications via the service worker, which is what your current architecture supports.
+- **Lovable preview iframe**: Notifications and SW registration are intentionally suppressed there. Testing must be done on `https://giotask.lovable.app`.
 
-### Data Used by the AI
+## Files touched
 
-The prompt will include only relevant structured context:
-
-- Upcoming Couple Life tasks.
-- Recently completed Couple Life tasks.
-- Nearby holidays already supported by the local suggestion logic.
-- The selected mood/budget/timing.
-- Existing Couple Life tag ID for prefill behavior.
-
-The AI should not create tasks directly. It only proposes drafts; the user reviews and clicks **Create task**.
-
-### Fallback Behavior
-
-If AI is unavailable or fails:
-
-- Show a clear toast/error message.
-- Keep the existing rule-based suggestions visible.
-- Do not block normal task creation.
-
-For local LLMs, if structured/tool output is unsupported, parse a plain JSON response similarly to the existing local scheduler fallback.
-
-### Technical Details
-
-Files to add/modify:
-
-- `src/lib/coupleLifeAiPrompt.ts` — build provider-neutral prompts and parse/validate AI suggestion output.
-- `src/hooks/useCoupleLifeAiSuggestions.ts` — generate suggestions using the active provider.
-- `supabase/functions/generate-couple-ideas/index.ts` — backend function for Lovable AI and Cloud LLM providers.
-- `src/pages/CoupleLifePage.tsx` — add AI generation UI, loading states, and AI suggestion cards.
-- Optionally `src/lib/llmUtils.ts` — share local endpoint normalization/parsing currently duplicated in scheduler logic.
-
-Flow:
-
-```text
-Couple Life page
-  -> User chooses mood/budget/timing
-  -> Generate ideas
-      -> Lovable AI / Cloud: backend function
-      -> Local: browser request to local endpoint
-  -> Validate structured suggestions
-  -> Show suggestion cards
-  -> Create task opens TaskDialog with prefilled values
-```
-
-### Output Shape
-
-The AI response should be constrained to structured suggestions like:
-
-```text
-[
-  {
-    title,
-    description,
-    reason,
-    suggested_date,
-    scheduled_start_time,
-    duration_minutes,
-    reminder_minutes,
-    occasion
-  }
-]
-```
-
-For providers that support tool/function calling, use structured output. For local models without tool support, request strict JSON and parse defensively.
-
-### Safety and Privacy
-
-- Do not auto-create tasks from AI output.
-- Do not send unrelated tasks; only Couple Life task summaries are used.
-- Do not store generated suggestions unless the user creates a task.
-- Keep API keys on the backend for cloud providers; local LLM calls remain browser-local as currently implemented.
-
-### Out of Scope
-
-- Fully autonomous date planning without review.
-- External booking, maps, restaurants, tickets, or reservations.
-- Sharing the section with your girlfriend.
-- Country-specific public holiday APIs.
-- Long-term AI memory beyond existing completed tasks.
+- new: `public/sw.js`
+- new: `public/manifest.webmanifest`
+- edit: `index.html` — manifest link + iOS PWA meta tags
+- edit: `src/main.tsx` — register service worker (skipped in iframe/preview)
+- edit: `src/hooks/useReminders.ts` — use SW for notifications; auto-request permission; refresh on visibility change
+- edit: `src/pages/SettingsPage.tsx` — auto-prompt on toggle on; "Send test notification" button; clearer iOS/Android guidance
