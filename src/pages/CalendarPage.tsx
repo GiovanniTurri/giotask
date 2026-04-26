@@ -123,6 +123,7 @@ export default function CalendarPage() {
           onDateChange={setCurrentDate}
           onToday={() => setCurrentDate(new Date())}
           tasks={tasks || []}
+          googleEvents={googleEvents || []}
           onTaskClick={handleTaskClick}
         />
         <div className="flex items-center gap-2">
