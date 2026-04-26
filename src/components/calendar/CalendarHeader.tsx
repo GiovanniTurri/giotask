@@ -3,7 +3,9 @@ import { Button } from "@/components/ui/button";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Badge } from "@/components/ui/badge";
-import { ChevronLeft, ChevronRight, Mail, CalendarDays } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
+import { ChevronLeft, ChevronRight, Mail, CalendarDays, MapPin } from "lucide-react";
 import {
   format,
   addMonths,
@@ -18,14 +20,41 @@ import {
 import type { Task } from "@/hooks/useTasks";
 import { cn } from "@/lib/utils";
 
+interface GoogleEvent {
+  id: string;
+  title: string;
+  start_time: string;
+  end_time: string;
+  all_day: boolean;
+  color: string | null;
+  location: string | null;
+}
+
 interface CalendarHeaderProps {
   currentDate: Date;
   view: "month" | "week" | "day";
   onDateChange: (date: Date) => void;
   onToday: () => void;
   tasks?: (Task & { client_tags?: { name: string; color: string } | null })[];
+  googleEvents?: GoogleEvent[];
   onTaskClick?: (task: any) => void;
 }
+
+type AgendaItem =
+  | {
+      kind: "task";
+      id: string;
+      sortKey: string;
+      timeLabel: string;
+      task: Task & { client_tags?: { name: string; color: string } | null };
+    }
+  | {
+      kind: "event";
+      id: string;
+      sortKey: string;
+      timeLabel: string;
+      event: GoogleEvent;
+    };
 
 export function CalendarHeader({
   currentDate,
@@ -33,9 +62,11 @@ export function CalendarHeader({
   onDateChange,
   onToday,
   tasks = [],
+  googleEvents = [],
   onTaskClick,
 }: CalendarHeaderProps) {
   const [agendaOpen, setAgendaOpen] = useState(false);
+  const [includeGEvents, setIncludeGEvents] = useState(true);
 
   const navigate = (direction: 1 | -1) => {
     const fns = {
@@ -54,19 +85,46 @@ export function CalendarHeader({
 
   const todayTasks = useMemo(() => {
     const now = new Date();
-    return tasks
-      .filter((t) => t.scheduled_date && isSameDay(parseISO(t.scheduled_date), now))
-      .sort((a, b) => {
-        const at = a.scheduled_start_time ?? "99:99:99";
-        const bt = b.scheduled_start_time ?? "99:99:99";
-        return at.localeCompare(bt);
-      });
+    return tasks.filter(
+      (t) => t.scheduled_date && isSameDay(parseISO(t.scheduled_date), now)
+    );
   }, [tasks]);
 
-  const timedTasks = todayTasks.filter((t) => t.scheduled_start_time);
-  const anytimeTasks = todayTasks.filter((t) => !t.scheduled_start_time);
+  const todayEvents = useMemo(() => {
+    const now = new Date();
+    return googleEvents.filter((e) => isSameDay(new Date(e.start_time), now));
+  }, [googleEvents]);
 
-  const handleRowClick = (task: any) => {
+  const items: AgendaItem[] = useMemo(() => {
+    const taskItems: AgendaItem[] = todayTasks.map((task) => ({
+      kind: "task" as const,
+      id: `task-${task.id}`,
+      sortKey: task.scheduled_start_time ?? "99:99:99",
+      timeLabel: task.scheduled_start_time ? task.scheduled_start_time.slice(0, 5) : "—",
+      task,
+    }));
+
+    const eventItems: AgendaItem[] = includeGEvents
+      ? todayEvents.map((event) => {
+          const start = new Date(event.start_time);
+          const hh = String(start.getHours()).padStart(2, "0");
+          const mm = String(start.getMinutes()).padStart(2, "0");
+          return {
+            kind: "event" as const,
+            id: `event-${event.id}`,
+            sortKey: event.all_day ? "00:00:00" : `${hh}:${mm}:00`,
+            timeLabel: event.all_day ? "All day" : `${hh}:${mm}`,
+            event,
+          };
+        })
+      : [];
+
+    return [...taskItems, ...eventItems].sort((a, b) => a.sortKey.localeCompare(b.sortKey));
+  }, [todayTasks, todayEvents, includeGEvents]);
+
+  const triggerCount = todayTasks.length + (includeGEvents ? todayEvents.length : 0);
+
+  const handleTaskRowClick = (task: any) => {
     setAgendaOpen(false);
     onTaskClick?.(task);
   };
@@ -83,47 +141,64 @@ export function CalendarHeader({
           <Button variant="outline" size="sm">
             <CalendarDays className="h-4 w-4 mr-1" />
             Today
-            {todayTasks.length > 0 && (
+            {triggerCount > 0 && (
               <Badge variant="secondary" className="ml-2 h-5 px-1.5 text-[10px]">
-                {todayTasks.length}
+                {triggerCount}
               </Badge>
             )}
           </Button>
         </PopoverTrigger>
         <PopoverContent align="start" className="w-80 p-0">
-          <div className="px-4 py-3 border-b flex items-center justify-between">
-            <div>
-              <div className="text-sm font-semibold">Today</div>
-              <div className="text-xs text-muted-foreground">
-                {format(new Date(), "EEEE, MMM d")}
+          <div className="px-4 py-3 border-b">
+            <div className="flex items-center justify-between">
+              <div>
+                <div className="text-sm font-semibold">Today</div>
+                <div className="text-xs text-muted-foreground">
+                  {format(new Date(), "EEEE, MMM d")}
+                </div>
               </div>
+              <Badge variant="outline" className="text-xs">
+                {todayTasks.length} {todayTasks.length === 1 ? "task" : "tasks"}
+                {includeGEvents && todayEvents.length > 0 && (
+                  <span className="ml-1 text-muted-foreground">
+                    · {todayEvents.length} evt
+                  </span>
+                )}
+              </Badge>
             </div>
-            <Badge variant="outline" className="text-xs">
-              {todayTasks.length} {todayTasks.length === 1 ? "task" : "tasks"}
-            </Badge>
+            <div className="flex items-center justify-between mt-3">
+              <Label
+                htmlFor="agenda-include-gcal"
+                className="text-xs text-muted-foreground cursor-pointer"
+              >
+                Include Google Calendar
+              </Label>
+              <Switch
+                id="agenda-include-gcal"
+                checked={includeGEvents}
+                onCheckedChange={setIncludeGEvents}
+              />
+            </div>
           </div>
 
-          {todayTasks.length === 0 ? (
+          {items.length === 0 ? (
             <div className="px-4 py-6 text-center text-sm text-muted-foreground">
               Nothing scheduled for today.
             </div>
           ) : (
             <ScrollArea className="max-h-80">
               <div className="py-1">
-                {timedTasks.map((task) => (
-                  <AgendaRow key={task.id} task={task} onClick={() => handleRowClick(task)} />
-                ))}
-                {anytimeTasks.length > 0 && (
-                  <>
-                    {timedTasks.length > 0 && (
-                      <div className="px-4 pt-2 pb-1 text-[10px] uppercase tracking-wide text-muted-foreground">
-                        Anytime
-                      </div>
-                    )}
-                    {anytimeTasks.map((task) => (
-                      <AgendaRow key={task.id} task={task} onClick={() => handleRowClick(task)} />
-                    ))}
-                  </>
+                {items.map((item) =>
+                  item.kind === "task" ? (
+                    <TaskRow
+                      key={item.id}
+                      task={item.task}
+                      timeLabel={item.timeLabel}
+                      onClick={() => handleTaskRowClick(item.task)}
+                    />
+                  ) : (
+                    <EventRow key={item.id} event={item.event} timeLabel={item.timeLabel} />
+                  )
                 )}
               </div>
             </ScrollArea>
@@ -148,12 +223,13 @@ export function CalendarHeader({
   );
 }
 
-interface AgendaRowProps {
+interface TaskRowProps {
   task: Task & { client_tags?: { name: string; color: string } | null };
+  timeLabel: string;
   onClick: () => void;
 }
 
-function AgendaRow({ task, onClick }: AgendaRowProps) {
+function TaskRow({ task, timeLabel, onClick }: TaskRowProps) {
   const isFollowUp = (task as any).task_kind === "follow_up";
   const dotColor = task.client_tags?.color ?? "hsl(var(--primary))";
   const isDone = task.status === "done";
@@ -170,7 +246,7 @@ function AgendaRow({ task, onClick }: AgendaRowProps) {
           isDone ? "text-muted-foreground/60" : "text-muted-foreground"
         )}
       >
-        {task.scheduled_start_time ? task.scheduled_start_time.slice(0, 5) : "—"}
+        {timeLabel}
       </span>
       <span
         className="h-2 w-2 rounded-full shrink-0"
@@ -188,5 +264,35 @@ function AgendaRow({ task, onClick }: AgendaRowProps) {
       </span>
       <span className="text-xs text-muted-foreground shrink-0">{task.time_estimate}m</span>
     </button>
+  );
+}
+
+interface EventRowProps {
+  event: GoogleEvent;
+  timeLabel: string;
+}
+
+function EventRow({ event, timeLabel }: EventRowProps) {
+  const dotColor = event.color ?? "#4285f4";
+  return (
+    <div className="w-full flex items-center gap-2 px-4 py-2">
+      <span className="text-xs tabular-nums w-12 shrink-0 text-muted-foreground">
+        {timeLabel}
+      </span>
+      <span
+        className="h-2 w-2 rounded-full shrink-0 ring-1 ring-background"
+        style={{ backgroundColor: dotColor }}
+        aria-hidden
+      />
+      <span className="flex-1 min-w-0 text-sm flex items-center gap-1 truncate">
+        <span className="truncate">{event.title}</span>
+        {event.location && (
+          <MapPin className="h-3 w-3 shrink-0 opacity-60" aria-hidden />
+        )}
+      </span>
+      <span className="text-[10px] uppercase tracking-wide text-muted-foreground shrink-0">
+        gcal
+      </span>
+    </div>
   );
 }
