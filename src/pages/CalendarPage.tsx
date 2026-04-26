@@ -124,19 +124,36 @@ export default function CalendarPage() {
           onToday={() => setCurrentDate(new Date())}
         />
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchSchedule}
-            disabled={isScheduling}
-          >
-            {isScheduling ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4 mr-1" />
-            )}
-            Reschedule All
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" disabled={isScheduling || isMovingOverdue}>
+                {isScheduling || isMovingOverdue ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4 mr-1" />
+                )}
+                Schedule
+                <ChevronDown className="h-3 w-3 ml-1 opacity-70" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuItem onClick={fetchSchedule} disabled={isScheduling || isMovingOverdue}>
+                <Sparkles className="h-4 w-4 mr-2" />
+                <div className="flex flex-col">
+                  <span>Reschedule All (AI)</span>
+                  <span className="text-xs text-muted-foreground">Auto-plan all open tasks</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleMoveOverdue} disabled={isScheduling || isMovingOverdue}>
+                <BellRing className="h-4 w-4 mr-2" />
+                <div className="flex flex-col">
+                  <span>Don't forget</span>
+                  <span className="text-xs text-muted-foreground">Move overdue tasks to yesterday</span>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Tabs value={view} onValueChange={(v) => setView(v as ViewType)}>
             <TabsList>
               <TabsTrigger value="month">Month</TabsTrigger>
