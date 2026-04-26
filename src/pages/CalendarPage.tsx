@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays } from "date-fns";
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, subDays } from "date-fns";
 import { useTasks, useUpdateTask } from "@/hooks/useTasks";
 import { useGoogleCalendarEvents } from "@/hooks/useGoogleCalendar";
 import { useAiScheduler } from "@/hooks/useAiScheduler";
@@ -11,8 +11,16 @@ import { SchedulePreview } from "@/components/calendar/SchedulePreview";
 import { TaskDialog } from "@/components/TaskDialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Loader2, Sparkles } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Loader2, Sparkles, BellRing, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 type ViewType = "month" | "week" | "day";
 
@@ -22,10 +30,41 @@ export default function CalendarPage() {
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [isMovingOverdue, setIsMovingOverdue] = useState(false);
 
   const { data: tasks, isLoading } = useTasks();
   const updateTask = useUpdateTask();
   const { isScheduling, preview, fetchSchedule, applySchedule, dismissPreview } = useAiScheduler();
+
+  const handleMoveOverdue = useCallback(async () => {
+    setIsMovingOverdue(true);
+    try {
+      const today = format(new Date(), "yyyy-MM-dd");
+      const yesterday = format(subDays(new Date(), 1), "yyyy-MM-dd");
+
+      const { data: overdue, error } = await supabase
+        .from("tasks")
+        .select("id")
+        .neq("status", "done")
+        .not("scheduled_date", "is", null)
+        .lt("scheduled_date", today);
+      if (error) throw error;
+
+      if (!overdue || overdue.length === 0) {
+        toast.info("No overdue tasks");
+        return;
+      }
+
+      for (const t of overdue) {
+        await updateTask.mutateAsync({ id: t.id, scheduled_date: yesterday });
+      }
+      toast.success(`Moved ${overdue.length} overdue task${overdue.length === 1 ? "" : "s"} to yesterday`);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to move overdue tasks");
+    } finally {
+      setIsMovingOverdue(false);
+    }
+  }, [updateTask]);
 
   // Calculate date range for Google Calendar events based on current view
   const dateRange = useMemo(() => {
@@ -85,19 +124,36 @@ export default function CalendarPage() {
           onToday={() => setCurrentDate(new Date())}
         />
         <div className="flex items-center gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={fetchSchedule}
-            disabled={isScheduling}
-          >
-            {isScheduling ? (
-              <Loader2 className="h-4 w-4 mr-1 animate-spin" />
-            ) : (
-              <Sparkles className="h-4 w-4 mr-1" />
-            )}
-            Reschedule All
-          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" disabled={isScheduling || isMovingOverdue}>
+                {isScheduling || isMovingOverdue ? (
+                  <Loader2 className="h-4 w-4 mr-1 animate-spin" />
+                ) : (
+                  <Sparkles className="h-4 w-4 mr-1" />
+                )}
+                Schedule
+                <ChevronDown className="h-3 w-3 ml-1 opacity-70" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-60">
+              <DropdownMenuItem onClick={fetchSchedule} disabled={isScheduling || isMovingOverdue}>
+                <Sparkles className="h-4 w-4 mr-2" />
+                <div className="flex flex-col">
+                  <span>Reschedule All (AI)</span>
+                  <span className="text-xs text-muted-foreground">Auto-plan all open tasks</span>
+                </div>
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={handleMoveOverdue} disabled={isScheduling || isMovingOverdue}>
+                <BellRing className="h-4 w-4 mr-2" />
+                <div className="flex flex-col">
+                  <span>Don't forget</span>
+                  <span className="text-xs text-muted-foreground">Move overdue tasks to yesterday</span>
+                </div>
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           <Tabs value={view} onValueChange={(v) => setView(v as ViewType)}>
             <TabsList>
               <TabsTrigger value="month">Month</TabsTrigger>
