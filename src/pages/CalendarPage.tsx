@@ -1,5 +1,5 @@
 import { useState, useCallback, useMemo } from "react";
-import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays } from "date-fns";
+import { format, startOfMonth, endOfMonth, startOfWeek, endOfWeek, addDays, subDays } from "date-fns";
 import { useTasks, useUpdateTask } from "@/hooks/useTasks";
 import { useGoogleCalendarEvents } from "@/hooks/useGoogleCalendar";
 import { useAiScheduler } from "@/hooks/useAiScheduler";
@@ -11,8 +11,16 @@ import { SchedulePreview } from "@/components/calendar/SchedulePreview";
 import { TaskDialog } from "@/components/TaskDialog";
 import { Tabs, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Button } from "@/components/ui/button";
-import { Loader2, Sparkles } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import { Loader2, Sparkles, BellRing, ChevronDown } from "lucide-react";
 import { toast } from "sonner";
+import { supabase } from "@/integrations/supabase/client";
 
 type ViewType = "month" | "week" | "day";
 
