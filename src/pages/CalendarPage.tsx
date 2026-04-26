@@ -30,10 +30,41 @@ export default function CalendarPage() {
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [isMovingOverdue, setIsMovingOverdue] = useState(false);
 
   const { data: tasks, isLoading } = useTasks();
   const updateTask = useUpdateTask();
   const { isScheduling, preview, fetchSchedule, applySchedule, dismissPreview } = useAiScheduler();
+
+  const handleMoveOverdue = useCallback(async () => {
+    setIsMovingOverdue(true);
+    try {
+      const today = format(new Date(), "yyyy-MM-dd");
+      const yesterday = format(subDays(new Date(), 1), "yyyy-MM-dd");
+
+      const { data: overdue, error } = await supabase
+        .from("tasks")
+        .select("id")
+        .neq("status", "done")
+        .not("scheduled_date", "is", null)
+        .lt("scheduled_date", today);
+      if (error) throw error;
+
+      if (!overdue || overdue.length === 0) {
+        toast.info("No overdue tasks");
+        return;
+      }
+
+      for (const t of overdue) {
+        await updateTask.mutateAsync({ id: t.id, scheduled_date: yesterday });
+      }
+      toast.success(`Moved ${overdue.length} overdue task${overdue.length === 1 ? "" : "s"} to yesterday`);
+    } catch (e: any) {
+      toast.error(e.message || "Failed to move overdue tasks");
+    } finally {
+      setIsMovingOverdue(false);
+    }
+  }, [updateTask]);
 
   // Calculate date range for Google Calendar events based on current view
   const dateRange = useMemo(() => {
