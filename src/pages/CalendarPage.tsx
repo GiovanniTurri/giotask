@@ -122,6 +122,8 @@ export default function CalendarPage() {
           view={view}
           onDateChange={setCurrentDate}
           onToday={() => setCurrentDate(new Date())}
+          tasks={tasks || []}
+          onTaskClick={handleTaskClick}
         />
         <div className="flex items-center gap-2">
           <DropdownMenu>
