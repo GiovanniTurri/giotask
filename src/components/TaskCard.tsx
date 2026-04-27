@@ -57,8 +57,23 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
 
   const handleDelete = async () => {
     try {
-      await deleteTask.mutateAsync(task.id);
-      toast.success("Task deleted");
+      const snapshot = await deleteTask.mutateAsync(task.id);
+      toast.success("Task deleted", {
+        duration: 6000,
+        action: snapshot
+          ? {
+              label: "Undo",
+              onClick: async () => {
+                try {
+                  await restoreTask.mutateAsync(snapshot);
+                  toast.success("Task restored");
+                } catch (err: any) {
+                  toast.error(err.message || "Failed to restore task");
+                }
+              },
+            }
+          : undefined,
+      });
     } catch (e: any) {
       toast.error(e.message);
     }
