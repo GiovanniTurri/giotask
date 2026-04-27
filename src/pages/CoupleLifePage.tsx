@@ -317,6 +317,7 @@ export default function CoupleLifePage() {
       )}
 
       <TaskDialog open={dialogOpen} onOpenChange={setDialogOpen} task={null} initialValues={initialValues} />
+      <HolidayManager open={holidayManagerOpen} onOpenChange={setHolidayManagerOpen} />
     </div>
   );
 }
