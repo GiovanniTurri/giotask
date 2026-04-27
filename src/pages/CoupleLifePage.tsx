@@ -32,12 +32,14 @@ function formatTaskDate(task: any) {
 
 export default function CoupleLifePage() {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [holidayManagerOpen, setHolidayManagerOpen] = useState(false);
   const [initialValues, setInitialValues] = useState<Partial<TaskInsert> | undefined>();
   const [aiMood, setAiMood] = useState<CoupleLifeAiMood>("romantic");
   const [aiBudget, setAiBudget] = useState<CoupleLifeAiBudget>("low");
   const [aiTiming, setAiTiming] = useState<CoupleLifeAiTiming>("holiday");
   const { data: tasks, isLoading } = useTasks();
   const { data: tags } = useClientTags();
+  const { data: holidays } = useHolidays();
   const { ideas: aiIdeas, isGenerating, generate } = useCoupleLifeAiSuggestions();
 
   const coupleTag = useMemo(
