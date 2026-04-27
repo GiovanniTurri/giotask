@@ -1,14 +1,16 @@
 import { useMemo, useState } from "react";
 import { format, isAfter, startOfDay } from "date-fns";
-import { CalendarDays, Clock, Heart, Loader2, MapPin, Plus, Sparkles } from "lucide-react";
+import { CalendarDays, Clock, Heart, Loader2, MapPin, Plus, Settings, Sparkles } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TaskDialog } from "@/components/TaskDialog";
+import { HolidayManager } from "@/components/HolidayManager";
 import { useClientTags } from "@/hooks/useClientTags";
 import { useCoupleLifeAiSuggestions } from "@/hooks/useCoupleLifeAiSuggestions";
+import { useHolidays } from "@/hooks/useHolidays";
 import { useTasks, type TaskInsert } from "@/hooks/useTasks";
 import type { CoupleLifeAiBudget, CoupleLifeAiMood, CoupleLifeAiSuggestion, CoupleLifeAiTiming } from "@/lib/coupleLifeAiPrompt";
 import { buildCoupleLifeSuggestions, getRelativeDayLabel, type CoupleLifeSuggestion } from "@/lib/coupleLifeSuggestions";
