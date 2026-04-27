@@ -54,8 +54,30 @@ export function useDeleteTask() {
   const qc = useQueryClient();
   return useMutation({
     mutationFn: async (id: string) => {
+      const { data: snapshot, error: fetchError } = await supabase
+        .from("tasks")
+        .select("*")
+        .eq("id", id)
+        .maybeSingle();
+      if (fetchError) throw fetchError;
+
       const { error } = await supabase.from("tasks").delete().eq("id", id);
       if (error) throw error;
+      return snapshot as Task | null;
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+  });
+}
+
+export function useRestoreTask() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (snapshot: Task) => {
+      // Strip joined relations (e.g. client_tags) if present
+      const { client_tags: _ct, ...row } = snapshot as any;
+      const { data, error } = await supabase.from("tasks").insert(row).select().single();
+      if (error) throw error;
+      return data;
     },
     onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
   });

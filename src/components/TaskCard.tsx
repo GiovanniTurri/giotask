@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Clock, Calendar, Pencil, Trash2, Mail, ChevronDown, ChevronRight, AlertTriangle, Bell } from "lucide-react";
-import { useDeleteTask, useUpdateTask } from "@/hooks/useTasks";
+import { useDeleteTask, useRestoreTask, useUpdateTask } from "@/hooks/useTasks";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
@@ -28,6 +28,7 @@ const statusLabels: Record<string, string> = {
 
 export function TaskCard({ task, onEdit }: TaskCardProps) {
   const deleteTask = useDeleteTask();
+  const restoreTask = useRestoreTask();
   const updateTask = useUpdateTask();
 
   const isFollowUp = task.task_kind === "follow_up";
@@ -56,8 +57,23 @@ export function TaskCard({ task, onEdit }: TaskCardProps) {
 
   const handleDelete = async () => {
     try {
-      await deleteTask.mutateAsync(task.id);
-      toast.success("Task deleted");
+      const snapshot = await deleteTask.mutateAsync(task.id);
+      toast.success("Task deleted", {
+        duration: 6000,
+        action: snapshot
+          ? {
+              label: "Undo",
+              onClick: async () => {
+                try {
+                  await restoreTask.mutateAsync(snapshot);
+                  toast.success("Task restored");
+                } catch (err: any) {
+                  toast.error(err.message || "Failed to restore task");
+                }
+              },
+            }
+          : undefined,
+      });
     } catch (e: any) {
       toast.error(e.message);
     }
