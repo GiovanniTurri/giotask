@@ -1,14 +1,16 @@
 import { useMemo, useState } from "react";
 import { format, isAfter, startOfDay } from "date-fns";
-import { CalendarDays, Clock, Heart, Loader2, MapPin, Plus, Sparkles } from "lucide-react";
+import { CalendarDays, Clock, Heart, Loader2, MapPin, Plus, Settings, Sparkles } from "lucide-react";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { TaskDialog } from "@/components/TaskDialog";
+import { HolidayManager } from "@/components/HolidayManager";
 import { useClientTags } from "@/hooks/useClientTags";
 import { useCoupleLifeAiSuggestions } from "@/hooks/useCoupleLifeAiSuggestions";
+import { useHolidays } from "@/hooks/useHolidays";
 import { useTasks, type TaskInsert } from "@/hooks/useTasks";
 import type { CoupleLifeAiBudget, CoupleLifeAiMood, CoupleLifeAiSuggestion, CoupleLifeAiTiming } from "@/lib/coupleLifeAiPrompt";
 import { buildCoupleLifeSuggestions, getRelativeDayLabel, type CoupleLifeSuggestion } from "@/lib/coupleLifeSuggestions";
@@ -30,12 +32,14 @@ function formatTaskDate(task: any) {
 
 export default function CoupleLifePage() {
   const [dialogOpen, setDialogOpen] = useState(false);
+  const [holidayManagerOpen, setHolidayManagerOpen] = useState(false);
   const [initialValues, setInitialValues] = useState<Partial<TaskInsert> | undefined>();
   const [aiMood, setAiMood] = useState<CoupleLifeAiMood>("romantic");
   const [aiBudget, setAiBudget] = useState<CoupleLifeAiBudget>("low");
   const [aiTiming, setAiTiming] = useState<CoupleLifeAiTiming>("holiday");
   const { data: tasks, isLoading } = useTasks();
   const { data: tags } = useClientTags();
+  const { data: holidays } = useHolidays();
   const { ideas: aiIdeas, isGenerating, generate } = useCoupleLifeAiSuggestions();
 
   const coupleTag = useMemo(
@@ -55,7 +59,7 @@ export default function CoupleLifePage() {
   const completed = coupleTasks
     .filter((task: any) => task.status === "done")
     .sort((a: any, b: any) => (taskDateTime(b)?.getTime() || 0) - (taskDateTime(a)?.getTime() || 0));
-  const suggestions = buildCoupleLifeSuggestions(coupleTasks as any);
+  const suggestions = buildCoupleLifeSuggestions(coupleTasks as any, (holidays as any) || []);
 
   const openSuggestion = (suggestion: CoupleLifeSuggestion) => {
     setInitialValues({
@@ -213,7 +217,12 @@ export default function CoupleLifePage() {
             </div>
 
             <div className="space-y-3">
-              <h2 className="text-lg font-semibold">Suggestions</h2>
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-lg font-semibold">Suggestions</h2>
+                <Button variant="outline" size="sm" onClick={() => setHolidayManagerOpen(true)}>
+                  <Settings className="h-4 w-4 mr-1" /> Holidays
+                </Button>
+              </div>
               <Card className="border-couple/30 bg-couple-soft">
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-start gap-2">
@@ -308,6 +317,7 @@ export default function CoupleLifePage() {
       )}
 
       <TaskDialog open={dialogOpen} onOpenChange={setDialogOpen} task={null} initialValues={initialValues} />
+      <HolidayManager open={holidayManagerOpen} onOpenChange={setHolidayManagerOpen} />
     </div>
   );
 }

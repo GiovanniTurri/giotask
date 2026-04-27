@@ -17,47 +17,56 @@ interface SuggestionTask {
   status: string;
 }
 
+export interface HolidayRow {
+  id: string;
+  name: string;
+  month: number;
+  day: number;
+  year: number | null;
+  recurring: boolean;
+  kind: string;
+  title: string;
+  description: string;
+}
+
 function toISODate(date: Date) {
   return format(date, "yyyy-MM-dd");
 }
 
-function easterDate(year: number) {
-  const a = year % 19;
-  const b = Math.floor(year / 100);
-  const c = year % 100;
-  const d = Math.floor(b / 4);
-  const e = b % 4;
-  const f = Math.floor((b + 8) / 25);
-  const g = Math.floor((b - f + 1) / 3);
-  const h = (19 * a + b - d - g + 15) % 30;
-  const i = Math.floor(c / 4);
-  const k = c % 4;
-  const l = (32 + 2 * e + 2 * i - h - k) % 7;
-  const m = Math.floor((a + 11 * h + 22 * l) / 451);
-  const month = Math.floor((h + l - 7 * m + 114) / 31) - 1;
-  const day = ((h + l - 7 * m + 114) % 31) + 1;
-  return new Date(year, month, day);
+interface HolidayAnchor {
+  name: string;
+  date: Date;
+  title: string;
+  description: string;
 }
 
-function upcomingHolidayAnchors(today = new Date()) {
+export function buildHolidayAnchors(holidays: HolidayRow[], today = new Date()): HolidayAnchor[] {
   const start = startOfDay(today);
   const horizon = addDays(start, 90);
-  const years = [start.getFullYear(), start.getFullYear() + 1];
-  const anchors = years.flatMap((year) => [
-    { name: "Valentine’s Day", date: new Date(year, 1, 14), title: "Plan a Valentine’s date night", description: "Book a relaxed dinner, a shared dessert stop, or a small surprise walk together." },
-    { name: "International Women’s Day", date: new Date(year, 2, 8), title: "Prepare a thoughtful Women’s Day moment", description: "Plan flowers, a handwritten note, or a calm evening around something she likes." },
-    { name: "April 23", date: new Date(year, 3, 23), title: "Create an April 23 memory", description: "Use this date as a small relationship checkpoint: dinner, photos, or a meaningful walk." },
-    { name: "April 25", date: new Date(year, 3, 25), title: "Plan an April 25 day together", description: "Schedule a day trip, brunch, or outdoor activity if you both have time free." },
-    { name: "Easter / spring", date: easterDate(year), title: "Choose a spring weekend activity", description: "Plan a picnic, garden walk, museum visit, or a quiet brunch during the Easter period." },
-    { name: "Summer", date: new Date(year, 5, 21), title: "Schedule a summer picnic", description: "Pick a park, beach, or sunset spot and keep the plan light and easy." },
-    { name: "Halloween", date: new Date(year, 9, 31), title: "Plan a cozy Halloween evening", description: "Choose a movie night, themed cooking, or a relaxed evening at home." },
-    { name: "Christmas", date: new Date(year, 11, 25), title: "Plan a Christmas moment", description: "Prepare a festive walk, gift exchange, dinner, or visit to seasonal lights." },
-    { name: "New Year", date: new Date(year, 11, 31), title: "Plan New Year’s Eve together", description: "Reserve time for dinner, reflections, and a small shared goal for the next year." },
-  ]);
+  const anchors: HolidayAnchor[] = [];
 
-  return anchors
-    .filter((anchor) => !isBefore(anchor.date, start) && !isAfter(anchor.date, horizon))
-    .sort((a, b) => a.date.getTime() - b.date.getTime());
+  for (const h of holidays) {
+    const fallbackTitle = h.title?.trim() || `Plan something for ${h.name}`;
+    const fallbackDesc = h.description?.trim() || `Reserve time around ${h.name} for the two of you.`;
+
+    if (h.recurring) {
+      // Try this year, then next year — pick the next future occurrence within the horizon
+      for (const year of [start.getFullYear(), start.getFullYear() + 1]) {
+        const candidate = new Date(year, h.month - 1, h.day);
+        if (!isBefore(candidate, start) && !isAfter(candidate, horizon)) {
+          anchors.push({ name: h.name, date: candidate, title: fallbackTitle, description: fallbackDesc });
+          break;
+        }
+      }
+    } else if (h.year != null) {
+      const candidate = new Date(h.year, h.month - 1, h.day);
+      if (!isBefore(candidate, start) && !isAfter(candidate, horizon)) {
+        anchors.push({ name: h.name, date: candidate, title: fallbackTitle, description: fallbackDesc });
+      }
+    }
+  }
+
+  return anchors.sort((a, b) => a.date.getTime() - b.date.getTime());
 }
 
 function containsAny(text: string, words: string[]) {
@@ -73,13 +82,16 @@ export function getRelativeDayLabel(dateISO: string) {
   return `${Math.abs(diff)} days ago`;
 }
 
-export function buildCoupleLifeSuggestions(tasks: SuggestionTask[]): CoupleLifeSuggestion[] {
+export function buildCoupleLifeSuggestions(
+  tasks: SuggestionTask[],
+  holidays: HolidayRow[] = []
+): CoupleLifeSuggestion[] {
   const doneText = tasks
     .filter((task) => task.status === "done")
     .map((task) => `${task.title} ${task.description || ""}`.toLowerCase())
     .join(" ");
 
-  const suggestions: CoupleLifeSuggestion[] = upcomingHolidayAnchors().slice(0, 3).map((anchor) => ({
+  const suggestions: CoupleLifeSuggestion[] = buildHolidayAnchors(holidays).slice(0, 3).map((anchor) => ({
     id: `holiday-${anchor.name}-${toISODate(anchor.date)}`,
     title: anchor.title,
     description: anchor.description,

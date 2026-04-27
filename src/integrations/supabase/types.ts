@@ -127,6 +127,51 @@ export type Database = {
           },
         ]
       }
+      holidays: {
+        Row: {
+          created_at: string
+          day: number
+          description: string
+          id: string
+          is_builtin: boolean
+          kind: string
+          month: number
+          name: string
+          recurring: boolean
+          title: string
+          updated_at: string
+          year: number | null
+        }
+        Insert: {
+          created_at?: string
+          day: number
+          description?: string
+          id?: string
+          is_builtin?: boolean
+          kind?: string
+          month: number
+          name: string
+          recurring?: boolean
+          title?: string
+          updated_at?: string
+          year?: number | null
+        }
+        Update: {
+          created_at?: string
+          day?: number
+          description?: string
+          id?: string
+          is_builtin?: boolean
+          kind?: string
+          month?: number
+          name?: string
+          recurring?: boolean
+          title?: string
+          updated_at?: string
+          year?: number | null
+        }
+        Relationships: []
+      }
       llm_config: {
         Row: {
           active_provider: string
