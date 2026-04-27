@@ -166,6 +166,10 @@ export function TaskDialog({ open, onOpenChange, task, initialValues }: TaskDial
       toast.error("Title is required");
       return;
     }
+    if (!scheduledDate) {
+      toast.error("Scheduled date is required");
+      return;
+    }
 
     let reminderValue: number | null = null;
     if (reminderMinutes === "off") reminderValue = -1;
