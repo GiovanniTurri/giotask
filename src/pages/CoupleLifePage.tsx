@@ -217,7 +217,12 @@ export default function CoupleLifePage() {
             </div>
 
             <div className="space-y-3">
-              <h2 className="text-lg font-semibold">Suggestions</h2>
+              <div className="flex items-center justify-between gap-2">
+                <h2 className="text-lg font-semibold">Suggestions</h2>
+                <Button variant="outline" size="sm" onClick={() => setHolidayManagerOpen(true)}>
+                  <Settings className="h-4 w-4 mr-1" /> Holidays
+                </Button>
+              </div>
               <Card className="border-couple/30 bg-couple-soft">
                 <CardContent className="p-4 space-y-3">
                   <div className="flex items-start gap-2">
