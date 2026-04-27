@@ -3,7 +3,7 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Clock, Calendar, Pencil, Trash2, Mail, ChevronDown, ChevronRight, AlertTriangle, Bell } from "lucide-react";
-import { useDeleteTask, useUpdateTask } from "@/hooks/useTasks";
+import { useDeleteTask, useRestoreTask, useUpdateTask } from "@/hooks/useTasks";
 import { supabase } from "@/integrations/supabase/client";
 import { toast } from "sonner";
 import { cn } from "@/lib/utils";
