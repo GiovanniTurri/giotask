@@ -166,6 +166,10 @@ export function TaskDialog({ open, onOpenChange, task, initialValues }: TaskDial
       toast.error("Title is required");
       return;
     }
+    if (!scheduledDate) {
+      toast.error("Scheduled date is required");
+      return;
+    }
 
     let reminderValue: number | null = null;
     if (reminderMinutes === "off") reminderValue = -1;
@@ -319,8 +323,8 @@ export function TaskDialog({ open, onOpenChange, task, initialValues }: TaskDial
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="date">Scheduled Date</Label>
-              <Input id="date" type="date" value={scheduledDate} onChange={e => setScheduledDate(e.target.value)} />
+              <Label htmlFor="date">Scheduled Date <span className="text-destructive">*</span></Label>
+              <Input id="date" type="date" required value={scheduledDate} onChange={e => setScheduledDate(e.target.value)} />
             </div>
           </div>
 
