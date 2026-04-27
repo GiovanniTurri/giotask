@@ -323,8 +323,8 @@ export function TaskDialog({ open, onOpenChange, task, initialValues }: TaskDial
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="date">Scheduled Date</Label>
-              <Input id="date" type="date" value={scheduledDate} onChange={e => setScheduledDate(e.target.value)} />
+              <Label htmlFor="date">Scheduled Date <span className="text-destructive">*</span></Label>
+              <Input id="date" type="date" required value={scheduledDate} onChange={e => setScheduledDate(e.target.value)} />
             </div>
           </div>
 
