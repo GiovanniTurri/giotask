@@ -59,7 +59,7 @@ export default function CoupleLifePage() {
   const completed = coupleTasks
     .filter((task: any) => task.status === "done")
     .sort((a: any, b: any) => (taskDateTime(b)?.getTime() || 0) - (taskDateTime(a)?.getTime() || 0));
-  const suggestions = buildCoupleLifeSuggestions(coupleTasks as any);
+  const suggestions = buildCoupleLifeSuggestions(coupleTasks as any, (holidays as any) || []);
 
   const openSuggestion = (suggestion: CoupleLifeSuggestion) => {
     setInitialValues({
