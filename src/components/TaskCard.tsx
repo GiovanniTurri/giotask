@@ -28,6 +28,7 @@ const statusLabels: Record<string, string> = {
 
 export function TaskCard({ task, onEdit }: TaskCardProps) {
   const deleteTask = useDeleteTask();
+  const restoreTask = useRestoreTask();
   const updateTask = useUpdateTask();
 
   const isFollowUp = task.task_kind === "follow_up";
