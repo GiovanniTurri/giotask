@@ -25,7 +25,7 @@ import { supabase } from "@/integrations/supabase/client";
 type ViewType = "month" | "week" | "day";
 
 export default function CalendarPage() {
-  const [view, setView] = useState<ViewType>("month");
+  const [view, setView] = useState<ViewType>("day");
   const [currentDate, setCurrentDate] = useState(new Date());
   const [draggingTaskId, setDraggingTaskId] = useState<string | null>(null);
   const [editingTask, setEditingTask] = useState<any>(null);
