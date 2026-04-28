@@ -14,6 +14,27 @@ export type Database = {
   }
   public: {
     Tables: {
+      app_config: {
+        Row: {
+          is_public: boolean
+          key: string
+          updated_at: string
+          value: string
+        }
+        Insert: {
+          is_public?: boolean
+          key: string
+          updated_at?: string
+          value: string
+        }
+        Update: {
+          is_public?: boolean
+          key?: string
+          updated_at?: string
+          value?: string
+        }
+        Relationships: []
+      }
       client_tags: {
         Row: {
           color: string
@@ -205,6 +226,69 @@ export type Database = {
           local_api_endpoint?: string | null
           local_model?: string | null
           updated_at?: string
+        }
+        Relationships: []
+      }
+      push_subscriptions: {
+        Row: {
+          auth: string
+          created_at: string
+          endpoint: string
+          id: string
+          last_seen_at: string
+          p256dh: string
+          user_agent: string | null
+        }
+        Insert: {
+          auth: string
+          created_at?: string
+          endpoint: string
+          id?: string
+          last_seen_at?: string
+          p256dh: string
+          user_agent?: string | null
+        }
+        Update: {
+          auth?: string
+          created_at?: string
+          endpoint?: string
+          id?: string
+          last_seen_at?: string
+          p256dh?: string
+          user_agent?: string | null
+        }
+        Relationships: []
+      }
+      reminder_queue: {
+        Row: {
+          body: string
+          created_at: string
+          fire_at: string
+          id: string
+          sent_at: string | null
+          tag: string
+          task_id: string
+          title: string
+        }
+        Insert: {
+          body?: string
+          created_at?: string
+          fire_at: string
+          id?: string
+          sent_at?: string | null
+          tag: string
+          task_id: string
+          title: string
+        }
+        Update: {
+          body?: string
+          created_at?: string
+          fire_at?: string
+          id?: string
+          sent_at?: string | null
+          tag?: string
+          task_id?: string
+          title?: string
         }
         Relationships: []
       }

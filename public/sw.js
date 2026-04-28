@@ -1,25 +1,18 @@
-// Minimal service worker for local notifications.
-// Intentionally NOT a PWA / Workbox SW: no fetch handler, no caching.
-// This avoids breaking the Lovable preview while still allowing
-// ServiceWorkerRegistration.showNotification() on Android Chrome and
-// installed iOS PWAs (iOS 16.4+).
+// Service worker for local + push notifications.
+// No fetch handler / no caching to avoid breaking the Lovable preview.
 
 self.addEventListener("install", (event) => {
-  // Activate immediately on first install
   self.skipWaiting();
 });
 
 self.addEventListener("activate", (event) => {
-  // Take control of open pages right away
   event.waitUntil(self.clients.claim());
 });
 
 // Page -> SW message bridge to display notifications via the SW
-// (more reliable than `new Notification(...)` on Android Chrome).
 self.addEventListener("message", (event) => {
   const data = event.data || {};
   if (data.type !== "SHOW_NOTIFICATION") return;
-
   const { title, options } = data;
   event.waitUntil(
     self.registration.showNotification(title || "Reminder", {
@@ -33,28 +26,40 @@ self.addEventListener("message", (event) => {
   );
 });
 
-// When the user taps the notification, focus an existing tab or open one.
+// Real Web Push handler — fires even when the app is closed.
+self.addEventListener("push", (event) => {
+  let payload = {};
+  try {
+    payload = event.data ? event.data.json() : {};
+  } catch {
+    payload = { title: "Reminder", body: event.data?.text?.() || "" };
+  }
+  const title = payload.title || "Reminder";
+  const options = {
+    body: payload.body || "",
+    tag: payload.tag || "reminder",
+    icon: payload.icon || "/favicon.ico",
+    badge: payload.badge || "/favicon.ico",
+    data: payload.data || { url: "/" },
+    requireInteraction: false,
+  };
+  event.waitUntil(self.registration.showNotification(title, options));
+});
+
 self.addEventListener("notificationclick", (event) => {
   event.notification.close();
   const targetUrl = (event.notification.data && event.notification.data.url) || "/";
-
   event.waitUntil(
     self.clients
       .matchAll({ type: "window", includeUncontrolled: true })
       .then((clientList) => {
         for (const client of clientList) {
           if ("focus" in client) {
-            try {
-              client.navigate(targetUrl);
-            } catch {
-              // navigate may fail cross-origin; ignore
-            }
+            try { client.navigate(targetUrl); } catch {}
             return client.focus();
           }
         }
-        if (self.clients.openWindow) {
-          return self.clients.openWindow(targetUrl);
-        }
+        if (self.clients.openWindow) return self.clients.openWindow(targetUrl);
       })
   );
 });

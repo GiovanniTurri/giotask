@@ -2,13 +2,14 @@ import { useState, useEffect } from "react";
 import { useLlmConfig, useUpdateLlmConfig } from "@/hooks/useLlmConfig";
 import { useUserSettings, useUpdateUserSettings } from "@/hooks/useUserSettings";
 import { requestNotificationPermission, fireNotification } from "@/hooks/useReminders";
+import { usePushSubscription } from "@/hooks/usePushSubscription";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Save, Cloud, Monitor, Sparkles, Bell, BellOff } from "lucide-react";
+import { Loader2, Save, Cloud, Monitor, Sparkles, Bell, BellOff, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { GoogleCalendarSettings } from "@/components/GoogleCalendarSettings";
 
@@ -190,6 +191,8 @@ function NotificationsCard() {
   const [permission, setPermission] = useState<NotificationPermission>(
     typeof Notification !== "undefined" ? Notification.permission : "denied"
   );
+  const push = usePushSubscription();
+  const [pushBusy, setPushBusy] = useState(false);
 
   // Detect iOS — Notifications only work there if installed to home screen (iOS 16.4+).
   const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
@@ -299,6 +302,63 @@ function NotificationsCard() {
         </div>
       )}
 
+      {/* Background push delivery */}
+      {push.supported && (
+        <div className="rounded-md border border-border bg-muted/30 p-3 space-y-2">
+          <div className="flex items-center justify-between gap-2">
+            <Label className="text-sm flex items-center gap-1.5">
+              <Smartphone className="h-3.5 w-3.5" /> Background reminders (push)
+            </Label>
+            {push.status === "subscribed" ? (
+              <span className="text-[11px] rounded-full bg-emerald-500/15 text-emerald-700 dark:text-emerald-300 px-2 py-0.5">
+                Active on this device
+              </span>
+            ) : (
+              <span className="text-[11px] rounded-full bg-muted text-muted-foreground px-2 py-0.5">
+                {push.status === "denied" ? "Blocked" : "Off"}
+              </span>
+            )}
+          </div>
+          <p className="text-[11px] text-muted-foreground leading-relaxed">
+            Lets reminders arrive even when GioTask is closed or your phone is locked.
+            Required for the reminder you set on a task to actually fire on time.
+          </p>
+          <div className="flex gap-2">
+            {push.status !== "subscribed" ? (
+              <Button
+                size="sm"
+                variant="outline"
+                disabled={pushBusy || push.status === "denied"}
+                onClick={async () => {
+                  setPushBusy(true);
+                  const ok = await push.subscribe();
+                  setPushBusy(false);
+                  if (ok) toast.success("Background reminders enabled on this device");
+                  else toast.error("Could not enable background reminders");
+                }}
+              >
+                {pushBusy ? <Loader2 className="h-3.5 w-3.5 mr-1 animate-spin" /> : <Bell className="h-3.5 w-3.5 mr-1" />}
+                Enable on this device
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                variant="ghost"
+                disabled={pushBusy}
+                onClick={async () => {
+                  setPushBusy(true);
+                  await push.unsubscribe();
+                  setPushBusy(false);
+                  toast.message("Background reminders disabled on this device");
+                }}
+              >
+                Disable on this device
+              </Button>
+            )}
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center justify-between gap-4">
         <Label htmlFor="notif-toggle" className="text-sm flex items-center gap-1.5 cursor-pointer">
           {settings?.notifications_enabled ? <Bell className="h-3.5 w-3.5" /> : <BellOff className="h-3.5 w-3.5" />}
@@ -332,11 +392,12 @@ function NotificationsCard() {
       </div>
 
       <p className="text-[11px] text-muted-foreground leading-relaxed">
-        Reminders fire while this app is open in your browser, or installed as
-        an app on your phone. On iOS, install to home screen first. For background
-        delivery when the app is fully closed, a native build would be required.
-        Note: notifications are blocked inside the Lovable editor preview — test
-        on the published URL.
+        For reminders to fire when the app is closed or the phone is locked,
+        enable <strong>Background reminders</strong> above on each device.
+        On iOS this requires installing GioTask to the Home Screen first
+        (Share → Add to Home Screen, iOS 16.4+).
+        Note: push notifications are blocked inside the Lovable editor preview —
+        test on the published URL.
       </p>
     </Card>
   );
