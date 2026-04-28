@@ -2,13 +2,14 @@ import { useState, useEffect } from "react";
 import { useLlmConfig, useUpdateLlmConfig } from "@/hooks/useLlmConfig";
 import { useUserSettings, useUpdateUserSettings } from "@/hooks/useUserSettings";
 import { requestNotificationPermission, fireNotification } from "@/hooks/useReminders";
+import { usePushSubscription } from "@/hooks/usePushSubscription";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Save, Cloud, Monitor, Sparkles, Bell, BellOff } from "lucide-react";
+import { Loader2, Save, Cloud, Monitor, Sparkles, Bell, BellOff, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { GoogleCalendarSettings } from "@/components/GoogleCalendarSettings";
 
