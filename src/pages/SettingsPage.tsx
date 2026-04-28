@@ -191,6 +191,8 @@ function NotificationsCard() {
   const [permission, setPermission] = useState<NotificationPermission>(
     typeof Notification !== "undefined" ? Notification.permission : "denied"
   );
+  const push = usePushSubscription();
+  const [pushBusy, setPushBusy] = useState(false);
 
   // Detect iOS — Notifications only work there if installed to home screen (iOS 16.4+).
   const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
