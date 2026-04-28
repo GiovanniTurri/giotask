@@ -72,7 +72,10 @@ export function usePushSubscription() {
     if (!sub) {
       sub = await reg.pushManager.subscribe({
         userVisibleOnly: true,
-        applicationServerKey: appServerKey,
+        applicationServerKey: appServerKey.buffer.slice(
+          appServerKey.byteOffset,
+          appServerKey.byteOffset + appServerKey.byteLength
+        ) as ArrayBuffer,
       });
     }
 
