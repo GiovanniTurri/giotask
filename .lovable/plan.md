@@ -1,87 +1,134 @@
-# Reminder affidabili con Web Push
+# Landing Page at `/magic` for Freelancers
 
-## Perché oggi non funzionano
+## Goal
+Create a standalone marketing landing page that positions TaskFlow (giotask) as a productivity OS for freelancers, with a clear CTA to start using the app for free.
 
-I reminder sono pianificati con `setTimeout` dentro la pagina (`src/hooks/useReminders.ts`). Quando l'app è chiusa o il telefono è in standby, JS viene sospeso e il timer non scatta mai. La notifica "test" da Settings funziona solo perché viene mostrata immediatamente a app aperta.
+## Platform recap (what we're selling)
+From the codebase, TaskFlow currently offers:
+- **Smart Task Management** — statuses (todo / in-progress / done), client tags with custom colors, time estimates, scheduled dates, age indicators for stale tasks.
+- **AI Scheduler** — auto-plans open tasks across the 09:00–18:00 working window, with a preview before applying.
+- **Unified Calendar** — month/week/day views, drag-and-drop rescheduling, "move overdue to yesterday" shortcut.
+- **Google Calendar Sync** — read-only OAuth integration so existing meetings appear alongside tasks.
+- **Background Push Reminders** — server-side Web Push so reminders fire even when the app is closed.
+- **Client Tags** — segment work per client with color-coded tags (perfect for freelancers juggling multiple clients).
 
-La soluzione: **Web Push** server-side. Il browser/PWA registra una "subscription" presso il push service del sistema (FCM su Android, APNs su iOS 16.4+, Mozilla autopush su Firefox). Una funzione schedulata su Lovable Cloud controlla i reminder dovuti e invia il push, che il sistema operativo consegna anche ad app chiusa.
+## Page structure (`/magic`)
 
-## Cosa costruiamo
+The page is a **standalone marketing route** — no sidebar, full-width, dark-by-default hero, designed for conversion.
 
-### 1. Chiavi VAPID
+```text
+┌─────────────────────────────────────────┐
+│ Top nav: Logo · Features · FAQ · [CTA]  │
+├─────────────────────────────────────────┤
+│ HERO                                    │
+│   Eyebrow: "For freelancers & solos"    │
+│   H1: "Stop juggling clients.           │
+│        Start shipping work."            │
+│   Sub: AI plans your week so you bill   │
+│        more hours, not manage them.     │
+│   [Start free →]  [See how it works]    │
+│   Mock screenshot of calendar + AI      │
+├─────────────────────────────────────────┤
+│ SOCIAL PROOF STRIP                      │
+│   "Built for independent professionals" │
+│   logo-row of generic client types      │
+├─────────────────────────────────────────┤
+│ 3 KEY FEATURES (cards)                  │
+│   1. AI Schedule — "Plan a week in 5s"  │
+│   2. Per-Client Tags — "Know exactly    │
+│      where every billable hour went"    │
+│   3. Calendar that Syncs — "Google      │
+│      meetings + tasks, one view"        │
+├─────────────────────────────────────────┤
+│ FREELANCER OUTCOMES (numbers)           │
+│   • +X focused hours/week               │
+│   • Zero double-bookings                │
+│   • Reminders that survive standby      │
+├─────────────────────────────────────────┤
+│ HOW IT WORKS — 3 steps                  │
+│   1. Drop in tasks  2. AI plans them    │
+│   3. Get pushed when it's time          │
+├─────────────────────────────────────────┤
+│ OBJECTIONS / FAQ                        │
+│   Ease of use? · Existing tools?        │
+│   Pricing? · Data privacy? · iOS push?  │
+├─────────────────────────────────────────┤
+│ FINAL CTA banner                        │
+│   "Your next billable hour starts here" │
+│   [Start free →]                        │
+├─────────────────────────────────────────┤
+│ Footer: Privacy · Terms · © giotask     │
+└─────────────────────────────────────────┘
+```
 
-Genero una coppia di chiavi VAPID e le salvo come secret di Lovable Cloud:
+## Copy (final, freelancer tone — confident, results-oriented)
 
-- `VAPID_PUBLIC_KEY` (verrà esposta lato client)
-- `VAPID_PRIVATE_KEY`
-- `VAPID_SUBJECT` (es. `mailto:tu@dominio.com`)
+**Hero**
+- Eyebrow: `For freelancers, consultants & solo operators`
+- H1: `Stop juggling clients. Start shipping work.`
+- Sub: `TaskFlow is the AI-powered planner that turns your scattered to-dos into a billable week — automatically.`
+- Primary CTA: `Start free` → `/` (the app)
+- Secondary CTA: `See how it works` → scrolls to "How it works"
 
-### 2. Database
+**Three key features (the asked-for 2–3)**
+1. **AI Schedule** — "Drop your tasks. Get a planned week in seconds. The AI respects your 9–6, your time estimates, and your existing meetings."  → translates to: *more deep-work blocks, less Sunday-night planning*.
+2. **Per-Client Tags** — "Color-code work by client. Filter, count, and review where every hour went."  → translates to: *clean invoices, defensible timesheets*.
+3. **Calendar that actually syncs** — "Two-way visual calendar with Google sync and drag-to-reschedule. One source of truth."  → translates to: *no double bookings, no missed standups*.
 
-Nuova tabella `push_subscriptions`:
+**Outcomes strip**
+- `Reclaim 5+ focus hours a week`
+- `Never miss a client deadline (push reminders survive standby)`
+- `One view: tasks + Google Calendar + reminders`
 
-- `id`, `endpoint` (unique), `p256dh`, `auth`, `user_agent`, `created_at`, `last_seen_at`
+**Objections / FAQ** (accordion)
+- *"I already use Notion / Trello / Google Calendar."* — TaskFlow doesn't replace your docs. It plugs into Google Calendar (read-only) and adds the one thing those tools don't: an AI that actually plans your day around real meetings.
+- *"Is it complicated to set up?"* — No login required to try, no credit card. Add a task, hit *Schedule*. That's it.
+- *"What does it cost?"* — Free while in beta. No paywall on AI scheduling, calendar, or reminders.
+- *"Will reminders work when my phone is locked?"* — Yes. Background Web Push is delivered server-side via cron — works on Android, and on iOS 16.4+ when added to Home Screen.
+- *"What about my data?"* — Stored in your private backend. Google Calendar access is read-only. See [Privacy Policy](/privacy).
 
-Nuova tabella `reminder_queue` (riempita lato client quando una task ha `reminder_minutes`):
+**Final CTA**
+- Headline: `Your next billable hour starts here.`
+- Button: `Open TaskFlow free →` → `/`
 
-- `id`, `task_id`, `fire_at` (timestamptz), `title`, `body`, `tag`, `sent_at`, `created_at`
-- Indice su `(sent_at, fire_at)` per la cron query.
+## Technical implementation
 
-### 3. Service Worker (`public/sw.js`)
+**New files**
+- `src/pages/MagicLandingPage.tsx` — single-file landing component using existing shadcn primitives (`Button`, `Card`, `Accordion`, `Badge`).
+- (optional) `src/components/landing/FeatureCard.tsx` if the file grows beyond ~250 lines; otherwise keep inline.
 
-Aggiungo:
+**Routing**
+- `src/App.tsx`: add `<Route path="/magic" element={<MagicLandingPage />} />`.
+- The landing page should render **without the AppSidebar** (it's a public marketing page). Approach: wrap the page in a layout that renders full-width and hides the sidebar — easiest is to refactor `App.tsx` so `/magic` is rendered outside the `flex min-h-screen` shell:
 
-- `push` event listener → `self.registration.showNotification(...)` con titolo, corpo, tag, icon, data.
-- `notificationclick` già presente: porta su `/`.
+```text
+<Routes>
+  <Route path="/magic" element={<MagicLandingPage />} />
+  <Route path="/*" element={<AppShell />} />  // existing sidebar + routes
+</Routes>
+```
 
-### 4. Frontend
+**Styling**
+- Reuse existing design tokens (`--primary`, `--accent`, `--couple-accent`, Space Grotesk for headings, Inter for body).
+- Force dark hero section regardless of user theme using `dark` class on the hero wrapper for a consistent marketing look.
+- Mobile-first (current viewport is 411px). Single-column on mobile, 3-col grid on `lg:`.
+- Use `lucide-react` icons already in project: `Sparkles`, `CalendarDays`, `Tags`, `BellRing`, `Zap`, `CheckSquare`.
 
-- `**src/hooks/usePushSubscription.ts**`: registra il SW (già esiste registrazione), chiama `pushManager.subscribe({ applicationServerKey: VAPID_PUBLIC_KEY })`, salva la subscription via edge function `push-subscribe`. Esposto un toggle "Abilita notifiche push" in Settings.
-- `**src/pages/SettingsPage.tsx**`: nel pannello Notifications aggiungo bottone "Enable push notifications" + stato.
-- `**src/hooks/useReminders.ts**`: rimuovo i `setTimeout`. Al posto, ogni volta che le task cambiano, sincronizzo la `reminder_queue`: per ogni task con `scheduled_date + scheduled_start_time + reminder_minutes` calcolo `fire_at = start − lead` e faccio upsert (chiave logica `task_id + fire_at`). Se la task viene cancellata o l'orario cambia, riallineo (delete+insert).
-- Mantengo il toast in-app come fallback se la pagina è aperta.
+**Visuals**
+- Hero "screenshot": a stylized CSS mock of a day-view calendar with 3 task blocks and an AI badge — built with divs (no external images needed).
+- No external image dependencies.
 
-### 5. Edge Functions
+**SEO**
+- Set `<title>` and `<meta description>` via a small `useEffect` in the page component (no need to add react-helmet).
 
-- `**push-subscribe**` (POST): riceve la subscription, la salva/aggiorna in `push_subscriptions`.
-- `**push-unsubscribe**` (POST): rimuove la subscription.
-- `send-due-reminders` (cron, ogni ora): seleziona `reminder_queue` con `sent_at IS NULL AND fire_at <= now() AND fire_at > now() - interval '60 min'`; per ogni riga, invia un push a tutte le subscription attive usando VAPID (libreria `npm:web-push@3` da Deno via `npm:` import). Marca `sent_at = now()`. Se una subscription risponde 404/410, la elimina.
+## Out of scope
+- No actual signup/billing flow (the app is currently single-user and free).
+- No A/B testing, analytics events, or email capture.
+- No changes to existing pages, routes, or backend.
 
-### 6. Cron
-
-Schedulazione `pg_cron` ogni ora che invoca `send-due-reminders` (autenticata con anon key).
-
-## Limiti da comunicare all'utente
-
-- **iOS**: Web Push funziona **solo se l'app è installata in Home Screen** (Aggiungi alla schermata Home) su iOS 16.4+. In Safari "normale" non funziona — è un limite di Apple.
-- **Android**: funziona sia da PWA installata sia da Chrome.
-- Se l'utente disinstalla la PWA o cambia browser, dovrà riabilitare le notifiche dalle Impostazioni dell'app.
-
-## Dettagli tecnici
-
-- `web-push` per Deno: `import webpush from "npm:web-push@3.6.7"` con `webpush.setVapidDetails(...)` e `webpush.sendNotification(subscription, JSON.stringify(payload))`.
-- Payload push: `{ title, body, tag, data: { url: "/" } }`.
-- Riallineamento queue lato client: per evitare duplicati uso `upsert` su `(task_id, fire_at)` con `onConflict`.
-- Pulizia: cron secondaria settimanale (o nella stessa funzione) rimuove righe con `sent_at` più vecchio di 30 giorni.
-- La VAPID public key viene esposta come variabile pubblica via una funzione `get-vapid-public-key` o salvata in `user_settings`/secret pubblico letto al primo subscribe.
-
-## File toccati
-
-Nuovi:
-
-- `supabase/functions/push-subscribe/index.ts`
-- `supabase/functions/push-unsubscribe/index.ts`
-- `supabase/functions/send-due-reminders/index.ts`
-- `supabase/functions/get-vapid-public-key/index.ts`
-- `src/hooks/usePushSubscription.ts`
-- migration: tabelle `push_subscriptions`, `reminder_queue` + cron job
-
-Modificati:
-
-- `public/sw.js` (handler `push`)
-- `src/hooks/useReminders.ts` (sync queue, niente più setTimeout)
-- `src/pages/SettingsPage.tsx` (toggle push)
-
-## Cosa ti chiederò durante l'implementazione
-
-Dopo l'approvazione del piano: il valore di `VAPID_SUBJECT` (un indirizzo email di contatto, richiesto dallo standard VAPID — può essere il tuo).
+## Acceptance
+- Visiting `/magic` shows the landing page **without** the app sidebar.
+- All CTAs link to `/` (the working app).
+- FAQ accordion expands/collapses.
+- Layout looks correct at 411px (mobile), 768px (tablet), and ≥1024px (desktop).
+- Existing routes (`/`, `/calendar`, `/couple-life`, `/settings`, `/privacy`, `/terms`) still render with the sidebar exactly as before.

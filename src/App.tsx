@@ -10,6 +10,7 @@ import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
 import SettingsPage from "./pages/SettingsPage";
 import CoupleLifePage from "./pages/CoupleLifePage";
+import MagicLandingPage from "./pages/MagicLandingPage";
 import NotFound from "./pages/NotFound";
 import { useReminders } from "@/hooks/useReminders";
 
@@ -20,6 +21,25 @@ function RemindersMount() {
   return null;
 }
 
+function AppShell() {
+  return (
+    <div className="flex min-h-screen">
+      <AppSidebar />
+      <main className="flex-1 ml-16 lg:ml-56 p-6 lg:p-8">
+        <Routes>
+          <Route path="/" element={<Index />} />
+          <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/couple-life" element={<CoupleLifePage />} />
+          <Route path="/settings" element={<SettingsPage />} />
+          <Route path="/privacy" element={<PrivacyPolicyPage />} />
+          <Route path="/terms" element={<TermsOfServicePage />} />
+          <Route path="*" element={<NotFound />} />
+        </Routes>
+      </main>
+    </div>
+  );
+}
+
 const App = () => (
   <QueryClientProvider client={queryClient}>
     <TooltipProvider>
@@ -27,20 +47,10 @@ const App = () => (
       <Sonner />
       <RemindersMount />
       <BrowserRouter>
-        <div className="flex min-h-screen">
-          <AppSidebar />
-          <main className="flex-1 ml-16 lg:ml-56 p-6 lg:p-8">
-            <Routes>
-              <Route path="/" element={<Index />} />
-              <Route path="/calendar" element={<CalendarPage />} />
-              <Route path="/couple-life" element={<CoupleLifePage />} />
-              <Route path="/settings" element={<SettingsPage />} />
-              <Route path="/privacy" element={<PrivacyPolicyPage />} />
-              <Route path="/terms" element={<TermsOfServicePage />} />
-              <Route path="*" element={<NotFound />} />
-            </Routes>
-          </main>
-        </div>
+        <Routes>
+          <Route path="/magic" element={<MagicLandingPage />} />
+          <Route path="/*" element={<AppShell />} />
+        </Routes>
       </BrowserRouter>
     </TooltipProvider>
   </QueryClientProvider>
