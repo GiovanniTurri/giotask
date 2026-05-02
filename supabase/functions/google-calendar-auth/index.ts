@@ -10,7 +10,7 @@ const corsHeaders = {
 const GOOGLE_TOKEN_URL = "https://oauth2.googleapis.com/token";
 const GOOGLE_AUTH_URL = "https://accounts.google.com/o/oauth2/v2/auth";
 const GOOGLE_USERINFO_URL = "https://www.googleapis.com/oauth2/v2/userinfo";
-const SCOPES = "https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/userinfo.email";
+const SCOPES = "https://www.googleapis.com/auth/calendar.events https://www.googleapis.com/auth/calendar.readonly https://www.googleapis.com/auth/userinfo.email";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
@@ -101,6 +101,7 @@ serve(async (req) => {
             access_token: tokens.access_token,
             refresh_token: tokens.refresh_token,
             token_expires_at: expiresAt,
+            granted_scopes: grantedScopes,
           },
           { onConflict: "google_email", ignoreDuplicates: false }
         );
@@ -120,6 +121,7 @@ serve(async (req) => {
               access_token: tokens.access_token,
               refresh_token: tokens.refresh_token,
               token_expires_at: expiresAt,
+              granted_scopes: grantedScopes,
             })
             .eq("id", existing.id);
         } else {
@@ -128,6 +130,7 @@ serve(async (req) => {
             access_token: tokens.access_token,
             refresh_token: tokens.refresh_token,
             token_expires_at: expiresAt,
+            granted_scopes: grantedScopes,
           });
         }
       }
@@ -205,6 +208,25 @@ serve(async (req) => {
       const { error: upErr } = await supabase
         .from("google_calendar_connections")
         .update({ selected_calendars: body.calendar_ids })
+        .eq("id", body.connection_id);
+      if (upErr) throw upErr;
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (body.action === "update_mirror_settings") {
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      const updates: Record<string, unknown> = {};
+      if (typeof body.mirror_enabled === "boolean") updates.mirror_enabled = body.mirror_enabled;
+      if (typeof body.mirror_target_calendar_id === "string") updates.mirror_target_calendar_id = body.mirror_target_calendar_id;
+      if (typeof body.mirror_label === "string") updates.mirror_label = body.mirror_label.slice(0, 100) || "Focus";
+      if (typeof body.mirror_visibility === "string") updates.mirror_visibility = body.mirror_visibility;
+
+      const { error: upErr } = await supabase
+        .from("google_calendar_connections")
+        .update(updates)
         .eq("id", body.connection_id);
       if (upErr) throw upErr;
 

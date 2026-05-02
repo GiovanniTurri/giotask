@@ -1,6 +1,7 @@
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { supabase } from "@/integrations/supabase/client";
 import type { Tables, TablesInsert, TablesUpdate } from "@/integrations/supabase/types";
+import { triggerTaskMirror } from "@/hooks/useGoogleCalendar";
 
 export type Task = Tables<"tasks">;
 export type TaskInsert = TablesInsert<"tasks">;
@@ -34,7 +35,10 @@ export function useCreateTask() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      if (data?.id) void triggerTaskMirror("upsert", data.id);
+    },
   });
 }
 
@@ -46,7 +50,10 @@ export function useUpdateTask() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      if (data?.id) void triggerTaskMirror("upsert", data.id);
+    },
   });
 }
 
@@ -60,6 +67,10 @@ export function useDeleteTask() {
         .eq("id", id)
         .maybeSingle();
       if (fetchError) throw fetchError;
+
+      // Trigger Google Calendar mirror cleanup BEFORE deletion (so the function
+      // can still look up the mirror row, though it stores its own ids).
+      void triggerTaskMirror("delete", id);
 
       const { error } = await supabase.from("tasks").delete().eq("id", id);
       if (error) throw error;
@@ -79,6 +90,9 @@ export function useRestoreTask() {
       if (error) throw error;
       return data;
     },
-    onSuccess: () => qc.invalidateQueries({ queryKey: ["tasks"] }),
+    onSuccess: (data) => {
+      qc.invalidateQueries({ queryKey: ["tasks"] });
+      if (data?.id) void triggerTaskMirror("upsert", data.id);
+    },
   });
 }
