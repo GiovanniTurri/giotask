@@ -61,6 +61,7 @@ export type Database = {
           access_token: string
           created_at: string
           google_email: string
+          granted_scopes: string
           id: string
           last_synced_at: string | null
           mirror_enabled: boolean
@@ -76,6 +77,7 @@ export type Database = {
           access_token: string
           created_at?: string
           google_email: string
+          granted_scopes?: string
           id?: string
           last_synced_at?: string | null
           mirror_enabled?: boolean
@@ -91,6 +93,7 @@ export type Database = {
           access_token?: string
           created_at?: string
           google_email?: string
+          granted_scopes?: string
           id?: string
           last_synced_at?: string | null
           mirror_enabled?: boolean
