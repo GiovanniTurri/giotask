@@ -112,3 +112,62 @@ export function useSyncGoogleCalendar() {
     },
   });
 }
+
+export function useUpdateMirrorSettings() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (params: {
+      connectionId: string;
+      mirror_enabled?: boolean;
+      mirror_target_calendar_id?: string;
+      mirror_label?: string;
+      mirror_visibility?: string;
+    }) => {
+      const { data, error } = await supabase.functions.invoke("google-calendar-auth", {
+        body: {
+          action: "update_mirror_settings",
+          connection_id: params.connectionId,
+          mirror_enabled: params.mirror_enabled,
+          mirror_target_calendar_id: params.mirror_target_calendar_id,
+          mirror_label: params.mirror_label,
+          mirror_visibility: params.mirror_visibility,
+        },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+    },
+    onSuccess: () => qc.invalidateQueries({ queryKey: ["google-calendar-connections"] }),
+  });
+}
+
+export function useBackfillMirror() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (connectionId: string) => {
+      const { data, error } = await supabase.functions.invoke("google-calendar-mirror", {
+        body: { action: "backfill", connection_id: connectionId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return data as { upserted: number };
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["google-calendar-events"] });
+      qc.invalidateQueries({ queryKey: ["google-calendar-connections"] });
+    },
+  });
+}
+
+/** Fire-and-forget mirror trigger after a task mutation. */
+export async function triggerTaskMirror(action: "upsert" | "delete", taskIds: string | string[]) {
+  try {
+    const ids = Array.isArray(taskIds) ? taskIds : [taskIds];
+    if (ids.length === 0) return;
+    await supabase.functions.invoke("google-calendar-mirror", {
+      body: { action, task_ids: ids },
+    });
+  } catch (e) {
+    console.warn("Mirror trigger failed:", e);
+  }
+}
+
