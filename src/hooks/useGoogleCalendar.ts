@@ -28,7 +28,14 @@ export function useGoogleCalendarEvents(startDate?: string, endDate?: string) {
 
       const { data, error } = await query;
       if (error) throw error;
-      return data;
+
+      // Hide events that this app itself wrote as task mirrors — they would
+      // otherwise show up as duplicate "Focus" blocks alongside the real task.
+      const { data: mirrors } = await supabase
+        .from("task_calendar_mirrors")
+        .select("google_event_id");
+      const mirrorIds = new Set((mirrors || []).map((m) => m.google_event_id));
+      return (data || []).filter((ev) => !mirrorIds.has(ev.google_event_id));
     },
   });
 }
