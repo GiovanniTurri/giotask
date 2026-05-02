@@ -1,91 +1,30 @@
 
-# Mirror Tasks as "Focus" Blocks to Google Calendars
+# Create Coder.md — Architecture Guide for AI Assistants
 
-## Goal
+A single root-level markdown file (`Coder.md`) summarizing how this project is structured and the rules to follow. It's written so a fresh assistant (Claude Code, Cursor, etc.) can land in the repo and produce changes that match existing conventions.
 
-When a task is scheduled in this app, automatically create a corresponding event titled **"Focus"** on selected linked Google Calendars — hiding the real task name while still blocking the time on your other calendars (work, personal, shared). When the task is rescheduled, moved, or deleted, the mirror event updates or disappears with it.
+## What it covers (15 sections)
 
-## Current state
+1. **What this app is** — single-user task manager, no auth, owner Giovanni Turri.
+2. **Tech stack** — Vite/React 18/TS, Tailwind v3 + shadcn, TanStack Query v5, Supabase (Edge Functions + pg_cron), Web Push, Vitest/Playwright. Notes that `src/integrations/supabase/{client,types}.ts` and `.env` are auto-generated and off-limits.
+3. **Routing & shell** — `/magic` outside the shell, everything else under `AppShell` with `<RemindersMount />` and `<AppSidebar />`.
+4. **Folder layout** — annotated tree of `src/`, `supabase/functions/`, `public/`, `mem://`.
+5. **Database schema** — every table with its purpose, the permissive RLS policy convention (and why the linter warnings are accepted), schema-change rules (migrations vs data inserts, no CHECK with `now()`, never touch reserved schemas).
+6. **Edge functions** — boilerplate (CORS, OPTIONS, error CORS), one-file rule, no imports from `src/`, validation requirements, plus a function-by-function map of all 9 functions.
+7. **AI scheduling flow** — fetch via edge or local browser call → preview → user approval → batch update + mirror.
+8. **Google Calendar integration** — read sync + the new write-back "Focus" mirroring (settings, `task_calendar_mirrors`, triggers, filtering, v1 limits).
+9. **State conventions** — all server I/O goes through TanStack Query hooks, query-key list, Sonner for toasts.
+10. **UI / design system** — dark mode default, Space Grotesk + Inter, HSL tokens only, never hard-code colors, shadcn primitives untouched.
+11. **Calendar layout math** — 60px-per-hour scale, absolute positioning rules, what to update in lockstep.
+12. **Project memory (`mem://`)** — list of files and when to save/use them.
+13. **Hard rules (do / don't)** — auth, file edits, raw SQL, color tokens, "speak in Lovable Cloud" guidance.
+14. **Adding a feature — checklist** — six-step path from memory → migration → edge function → hook → UI → route.
+15. **Common pitfalls** observed in this codebase (mirror filter, local LLM JSON parsing, time-zone handling, missing granted_scopes, Lovable AI 402/429).
 
-- Google integration is **read-only** today (scope: `calendar.readonly`). It can list events but cannot create/update/delete them.
-- Each linked Google account stores `selected_calendars` (which calendars to **read**).
-- Tasks have `scheduled_date` + `scheduled_start_time` + `time_estimate` — enough to derive a start/end window.
+## File location
 
-## What changes
+`Coder.md` at the project root, alongside `README.md`. Length ~ 9–10K characters.
 
-### 1. Upgrade OAuth scope to read/write
+## Implementation
 
-- Replace `calendar.readonly` with `https://www.googleapis.com/auth/calendar.events` in `google-calendar-auth`.
-- Existing connections will need to **reconnect once** to grant the new scope. We'll show a banner in Settings when a connection is missing the write scope, with a "Reconnect" button.
-
-### 2. New per-connection "mirror" settings
-
-Add to `google_calendar_connections`:
-- `mirror_enabled boolean default false` — master switch for that account.
-- `mirror_target_calendar_id text` — which calendar to write the "Focus" blocks into (defaults to `primary`). Choose from the same list already fetched in `list_calendars`.
-- `mirror_label text default 'Focus'` — what to call the events (user can change to e.g. "Busy", "Deep work").
-- `mirror_visibility text default 'private'` — Google visibility flag (`private` keeps details hidden on shared calendars).
-
-UI: extend `GoogleCalendarSettings.tsx` — for each linked account add:
-- Toggle: "Mirror my tasks to this calendar as Focus blocks"
-- Dropdown: target calendar
-- Text field: label (default "Focus")
-- Help text explaining what gets written and the "private" visibility.
-
-### 3. Track the mirror events
-
-New table `task_calendar_mirrors`:
-- `id`, `task_id`, `connection_id`, `calendar_id`, `google_event_id`, `created_at`, `updated_at`.
-- Unique on (`task_id`, `connection_id`) — one mirror per task per connected account.
-- RLS: allow all (matches the rest of the project's single-user model).
-
-This lets us update/delete the right Google event when the task changes, instead of creating duplicates.
-
-### 4. New edge function: `google-calendar-mirror`
-
-Single function with three actions:
-- `upsert` — given a `task_id`, for every connection with `mirror_enabled = true`:
-  - Compute start = `scheduled_date` + `scheduled_start_time`, end = start + `time_estimate` minutes.
-  - If a row exists in `task_calendar_mirrors` → `PATCH` the Google event.
-  - Else → `POST` a new event with summary = `mirror_label`, visibility = `private`, no description, no location, then store the returned `google_event_id`.
-  - Skip the connection if the task has no `scheduled_start_time` (we don't mirror unscheduled or all-day-only tasks in v1).
-- `delete` — given a `task_id`, delete every Google event referenced in `task_calendar_mirrors` for that task, then clear the rows.
-- `backfill` — given a `connection_id`, upsert mirrors for all currently scheduled, non-done tasks (used right after the user enables mirroring).
-
-Reuses the same `getValidAccessToken` refresh logic already in `google-calendar-sync`.
-
-### 5. Wire it into task lifecycle
-
-In `useTasks.ts` mutation hooks (`useUpdateTask`, `useCreateTask`, `useDeleteTask`):
-- After a successful create/update where the task is scheduled with a start time → fire-and-forget `supabase.functions.invoke('google-calendar-mirror', { body: { action: 'upsert', task_id }})`.
-- After a successful delete → call with `action: 'delete'`.
-- Same hook from `useAiScheduler.applySchedule` after the bulk schedule is committed (one upsert call per affected task, or extend the function to accept a list).
-
-Errors are logged but don't block the UI — mirroring is best-effort.
-
-### 6. Visual cue in the calendar views
-
-The user's own mirror events will come back through the existing read sync as Google events titled "Focus" on their other calendars. To avoid showing them as duplicate blocks **inside this app**, filter them out in `useGoogleCalendarEvents` / the calendar views: hide Google events whose `google_event_id` is referenced in `task_calendar_mirrors`.
-
-## Concerns / FAQ
-
-**Will this spam my work calendar?** Only the calendar you pick as the target, only when mirroring is toggled on, and only for tasks with a scheduled start time. You can disable per-account at any time.
-
-**Will my colleagues see the task name?** No — the event title is just "Focus" (or whatever label you choose) and visibility is set to `private`. Google shows it as a busy block on shared free/busy views.
-
-**What if I delete a task?** The corresponding Focus event is deleted from every linked calendar.
-
-**Existing scheduled tasks?** When you flip the mirror toggle on, we run a one-time backfill so they appear immediately.
-
-**v1 limitations:** All-day tasks and tasks without a start time are not mirrored. We only mirror to one target calendar per connected account (not multiple at once).
-
-## Technical summary
-
-- Migration: add columns to `google_calendar_connections`, create `task_calendar_mirrors`.
-- `supabase/functions/google-calendar-auth/index.ts`: scope change to `calendar.events`, add `update_mirror_settings` action.
-- `supabase/functions/google-calendar-mirror/index.ts`: new function (upsert/delete/backfill).
-- `src/hooks/useGoogleCalendar.ts`: add `useUpdateMirrorSettings`, `useBackfillMirror`.
-- `src/hooks/useTasks.ts`: invoke mirror function on create/update/delete.
-- `src/hooks/useAiScheduler.ts`: invoke mirror on apply.
-- `src/components/GoogleCalendarSettings.tsx`: per-connection mirror controls + reconnect banner when scope missing.
-- Calendar views: filter out events whose `google_event_id` is in `task_calendar_mirrors` to prevent duplicate rendering.
+The complete content is already drafted (above in this conversation). On approval, I'll write it verbatim to `Coder.md` — no other files will change.
