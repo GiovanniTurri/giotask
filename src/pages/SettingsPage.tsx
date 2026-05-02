@@ -71,6 +71,12 @@ export default function SettingsPage() {
       {/* Google Calendar Integration */}
       <GoogleCalendarSettings />
 
+      {/* Partner profile (used by Couple Life AI) */}
+      <PartnerProfileForm />
+
+      {/* Second brain (Obsidian import) */}
+      <SecondBrainSettings />
+
       {/* Notifications */}
       <NotificationsCard />
 
