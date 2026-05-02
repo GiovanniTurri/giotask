@@ -1,134 +1,91 @@
-# Landing Page at `/magic` for Freelancers
+
+# Mirror Tasks as "Focus" Blocks to Google Calendars
 
 ## Goal
-Create a standalone marketing landing page that positions TaskFlow (giotask) as a productivity OS for freelancers, with a clear CTA to start using the app for free.
 
-## Platform recap (what we're selling)
-From the codebase, TaskFlow currently offers:
-- **Smart Task Management** — statuses (todo / in-progress / done), client tags with custom colors, time estimates, scheduled dates, age indicators for stale tasks.
-- **AI Scheduler** — auto-plans open tasks across the 09:00–18:00 working window, with a preview before applying.
-- **Unified Calendar** — month/week/day views, drag-and-drop rescheduling, "move overdue to yesterday" shortcut.
-- **Google Calendar Sync** — read-only OAuth integration so existing meetings appear alongside tasks.
-- **Background Push Reminders** — server-side Web Push so reminders fire even when the app is closed.
-- **Client Tags** — segment work per client with color-coded tags (perfect for freelancers juggling multiple clients).
+When a task is scheduled in this app, automatically create a corresponding event titled **"Focus"** on selected linked Google Calendars — hiding the real task name while still blocking the time on your other calendars (work, personal, shared). When the task is rescheduled, moved, or deleted, the mirror event updates or disappears with it.
 
-## Page structure (`/magic`)
+## Current state
 
-The page is a **standalone marketing route** — no sidebar, full-width, dark-by-default hero, designed for conversion.
+- Google integration is **read-only** today (scope: `calendar.readonly`). It can list events but cannot create/update/delete them.
+- Each linked Google account stores `selected_calendars` (which calendars to **read**).
+- Tasks have `scheduled_date` + `scheduled_start_time` + `time_estimate` — enough to derive a start/end window.
 
-```text
-┌─────────────────────────────────────────┐
-│ Top nav: Logo · Features · FAQ · [CTA]  │
-├─────────────────────────────────────────┤
-│ HERO                                    │
-│   Eyebrow: "For freelancers & solos"    │
-│   H1: "Stop juggling clients.           │
-│        Start shipping work."            │
-│   Sub: AI plans your week so you bill   │
-│        more hours, not manage them.     │
-│   [Start free →]  [See how it works]    │
-│   Mock screenshot of calendar + AI      │
-├─────────────────────────────────────────┤
-│ SOCIAL PROOF STRIP                      │
-│   "Built for independent professionals" │
-│   logo-row of generic client types      │
-├─────────────────────────────────────────┤
-│ 3 KEY FEATURES (cards)                  │
-│   1. AI Schedule — "Plan a week in 5s"  │
-│   2. Per-Client Tags — "Know exactly    │
-│      where every billable hour went"    │
-│   3. Calendar that Syncs — "Google      │
-│      meetings + tasks, one view"        │
-├─────────────────────────────────────────┤
-│ FREELANCER OUTCOMES (numbers)           │
-│   • +X focused hours/week               │
-│   • Zero double-bookings                │
-│   • Reminders that survive standby      │
-├─────────────────────────────────────────┤
-│ HOW IT WORKS — 3 steps                  │
-│   1. Drop in tasks  2. AI plans them    │
-│   3. Get pushed when it's time          │
-├─────────────────────────────────────────┤
-│ OBJECTIONS / FAQ                        │
-│   Ease of use? · Existing tools?        │
-│   Pricing? · Data privacy? · iOS push?  │
-├─────────────────────────────────────────┤
-│ FINAL CTA banner                        │
-│   "Your next billable hour starts here" │
-│   [Start free →]                        │
-├─────────────────────────────────────────┤
-│ Footer: Privacy · Terms · © giotask     │
-└─────────────────────────────────────────┘
-```
+## What changes
 
-## Copy (final, freelancer tone — confident, results-oriented)
+### 1. Upgrade OAuth scope to read/write
 
-**Hero**
-- Eyebrow: `For freelancers, consultants & solo operators`
-- H1: `Stop juggling clients. Start shipping work.`
-- Sub: `TaskFlow is the AI-powered planner that turns your scattered to-dos into a billable week — automatically.`
-- Primary CTA: `Start free` → `/` (the app)
-- Secondary CTA: `See how it works` → scrolls to "How it works"
+- Replace `calendar.readonly` with `https://www.googleapis.com/auth/calendar.events` in `google-calendar-auth`.
+- Existing connections will need to **reconnect once** to grant the new scope. We'll show a banner in Settings when a connection is missing the write scope, with a "Reconnect" button.
 
-**Three key features (the asked-for 2–3)**
-1. **AI Schedule** — "Drop your tasks. Get a planned week in seconds. The AI respects your 9–6, your time estimates, and your existing meetings."  → translates to: *more deep-work blocks, less Sunday-night planning*.
-2. **Per-Client Tags** — "Color-code work by client. Filter, count, and review where every hour went."  → translates to: *clean invoices, defensible timesheets*.
-3. **Calendar that actually syncs** — "Two-way visual calendar with Google sync and drag-to-reschedule. One source of truth."  → translates to: *no double bookings, no missed standups*.
+### 2. New per-connection "mirror" settings
 
-**Outcomes strip**
-- `Reclaim 5+ focus hours a week`
-- `Never miss a client deadline (push reminders survive standby)`
-- `One view: tasks + Google Calendar + reminders`
+Add to `google_calendar_connections`:
+- `mirror_enabled boolean default false` — master switch for that account.
+- `mirror_target_calendar_id text` — which calendar to write the "Focus" blocks into (defaults to `primary`). Choose from the same list already fetched in `list_calendars`.
+- `mirror_label text default 'Focus'` — what to call the events (user can change to e.g. "Busy", "Deep work").
+- `mirror_visibility text default 'private'` — Google visibility flag (`private` keeps details hidden on shared calendars).
 
-**Objections / FAQ** (accordion)
-- *"I already use Notion / Trello / Google Calendar."* — TaskFlow doesn't replace your docs. It plugs into Google Calendar (read-only) and adds the one thing those tools don't: an AI that actually plans your day around real meetings.
-- *"Is it complicated to set up?"* — No login required to try, no credit card. Add a task, hit *Schedule*. That's it.
-- *"What does it cost?"* — Free while in beta. No paywall on AI scheduling, calendar, or reminders.
-- *"Will reminders work when my phone is locked?"* — Yes. Background Web Push is delivered server-side via cron — works on Android, and on iOS 16.4+ when added to Home Screen.
-- *"What about my data?"* — Stored in your private backend. Google Calendar access is read-only. See [Privacy Policy](/privacy).
+UI: extend `GoogleCalendarSettings.tsx` — for each linked account add:
+- Toggle: "Mirror my tasks to this calendar as Focus blocks"
+- Dropdown: target calendar
+- Text field: label (default "Focus")
+- Help text explaining what gets written and the "private" visibility.
 
-**Final CTA**
-- Headline: `Your next billable hour starts here.`
-- Button: `Open TaskFlow free →` → `/`
+### 3. Track the mirror events
 
-## Technical implementation
+New table `task_calendar_mirrors`:
+- `id`, `task_id`, `connection_id`, `calendar_id`, `google_event_id`, `created_at`, `updated_at`.
+- Unique on (`task_id`, `connection_id`) — one mirror per task per connected account.
+- RLS: allow all (matches the rest of the project's single-user model).
 
-**New files**
-- `src/pages/MagicLandingPage.tsx` — single-file landing component using existing shadcn primitives (`Button`, `Card`, `Accordion`, `Badge`).
-- (optional) `src/components/landing/FeatureCard.tsx` if the file grows beyond ~250 lines; otherwise keep inline.
+This lets us update/delete the right Google event when the task changes, instead of creating duplicates.
 
-**Routing**
-- `src/App.tsx`: add `<Route path="/magic" element={<MagicLandingPage />} />`.
-- The landing page should render **without the AppSidebar** (it's a public marketing page). Approach: wrap the page in a layout that renders full-width and hides the sidebar — easiest is to refactor `App.tsx` so `/magic` is rendered outside the `flex min-h-screen` shell:
+### 4. New edge function: `google-calendar-mirror`
 
-```text
-<Routes>
-  <Route path="/magic" element={<MagicLandingPage />} />
-  <Route path="/*" element={<AppShell />} />  // existing sidebar + routes
-</Routes>
-```
+Single function with three actions:
+- `upsert` — given a `task_id`, for every connection with `mirror_enabled = true`:
+  - Compute start = `scheduled_date` + `scheduled_start_time`, end = start + `time_estimate` minutes.
+  - If a row exists in `task_calendar_mirrors` → `PATCH` the Google event.
+  - Else → `POST` a new event with summary = `mirror_label`, visibility = `private`, no description, no location, then store the returned `google_event_id`.
+  - Skip the connection if the task has no `scheduled_start_time` (we don't mirror unscheduled or all-day-only tasks in v1).
+- `delete` — given a `task_id`, delete every Google event referenced in `task_calendar_mirrors` for that task, then clear the rows.
+- `backfill` — given a `connection_id`, upsert mirrors for all currently scheduled, non-done tasks (used right after the user enables mirroring).
 
-**Styling**
-- Reuse existing design tokens (`--primary`, `--accent`, `--couple-accent`, Space Grotesk for headings, Inter for body).
-- Force dark hero section regardless of user theme using `dark` class on the hero wrapper for a consistent marketing look.
-- Mobile-first (current viewport is 411px). Single-column on mobile, 3-col grid on `lg:`.
-- Use `lucide-react` icons already in project: `Sparkles`, `CalendarDays`, `Tags`, `BellRing`, `Zap`, `CheckSquare`.
+Reuses the same `getValidAccessToken` refresh logic already in `google-calendar-sync`.
 
-**Visuals**
-- Hero "screenshot": a stylized CSS mock of a day-view calendar with 3 task blocks and an AI badge — built with divs (no external images needed).
-- No external image dependencies.
+### 5. Wire it into task lifecycle
 
-**SEO**
-- Set `<title>` and `<meta description>` via a small `useEffect` in the page component (no need to add react-helmet).
+In `useTasks.ts` mutation hooks (`useUpdateTask`, `useCreateTask`, `useDeleteTask`):
+- After a successful create/update where the task is scheduled with a start time → fire-and-forget `supabase.functions.invoke('google-calendar-mirror', { body: { action: 'upsert', task_id }})`.
+- After a successful delete → call with `action: 'delete'`.
+- Same hook from `useAiScheduler.applySchedule` after the bulk schedule is committed (one upsert call per affected task, or extend the function to accept a list).
 
-## Out of scope
-- No actual signup/billing flow (the app is currently single-user and free).
-- No A/B testing, analytics events, or email capture.
-- No changes to existing pages, routes, or backend.
+Errors are logged but don't block the UI — mirroring is best-effort.
 
-## Acceptance
-- Visiting `/magic` shows the landing page **without** the app sidebar.
-- All CTAs link to `/` (the working app).
-- FAQ accordion expands/collapses.
-- Layout looks correct at 411px (mobile), 768px (tablet), and ≥1024px (desktop).
-- Existing routes (`/`, `/calendar`, `/couple-life`, `/settings`, `/privacy`, `/terms`) still render with the sidebar exactly as before.
+### 6. Visual cue in the calendar views
+
+The user's own mirror events will come back through the existing read sync as Google events titled "Focus" on their other calendars. To avoid showing them as duplicate blocks **inside this app**, filter them out in `useGoogleCalendarEvents` / the calendar views: hide Google events whose `google_event_id` is referenced in `task_calendar_mirrors`.
+
+## Concerns / FAQ
+
+**Will this spam my work calendar?** Only the calendar you pick as the target, only when mirroring is toggled on, and only for tasks with a scheduled start time. You can disable per-account at any time.
+
+**Will my colleagues see the task name?** No — the event title is just "Focus" (or whatever label you choose) and visibility is set to `private`. Google shows it as a busy block on shared free/busy views.
+
+**What if I delete a task?** The corresponding Focus event is deleted from every linked calendar.
+
+**Existing scheduled tasks?** When you flip the mirror toggle on, we run a one-time backfill so they appear immediately.
+
+**v1 limitations:** All-day tasks and tasks without a start time are not mirrored. We only mirror to one target calendar per connected account (not multiple at once).
+
+## Technical summary
+
+- Migration: add columns to `google_calendar_connections`, create `task_calendar_mirrors`.
+- `supabase/functions/google-calendar-auth/index.ts`: scope change to `calendar.events`, add `update_mirror_settings` action.
+- `supabase/functions/google-calendar-mirror/index.ts`: new function (upsert/delete/backfill).
+- `src/hooks/useGoogleCalendar.ts`: add `useUpdateMirrorSettings`, `useBackfillMirror`.
+- `src/hooks/useTasks.ts`: invoke mirror function on create/update/delete.
+- `src/hooks/useAiScheduler.ts`: invoke mirror on apply.
+- `src/components/GoogleCalendarSettings.tsx`: per-connection mirror controls + reconnect banner when scope missing.
+- Calendar views: filter out events whose `google_event_id` is in `task_calendar_mirrors` to prevent duplicate rendering.
