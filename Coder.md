@@ -211,6 +211,25 @@ v1 limits: only tasks with `scheduled_start_time` are mirrored; one target calen
 
 ---
 
+## 8b. Couple Life personalization (partner profile + Obsidian)
+
+Two layers of personal context feed the **Couple Life AI** prompt only — never the scheduler, never the Google Calendar mirrors.
+
+**Partner profile** (`partner_profile`, single-row, edited in Settings → Partner profile):
+- Fields: `display_name`, `birthday`, `anniversary_date`, `languages[]`, `loves[]`, `dislikes[]`, `food_restrictions[]`, `budget_default`, `mood_default`, `love_language`, `gift_wishlist[]`, `favorite_places[]`, `clothing_sizes`, `favorite_brands_artists[]`, `notes`.
+- Hooks: `usePartnerProfile`, `useUpdatePartnerProfile` (TanStack Query).
+- Prompt rules (enforced in `coupleLifeAiPrompt.ts` and `generate-couple-ideas/index.ts`): `dislikes` and `food_restrictions` are HARD constraints; `display_name` only inside the `reason` field, never in task titles.
+
+**Second brain — Obsidian (Mode A: folder import)**:
+- `brain_config` (single-row): `vault_subfolder` (filter), `partner_keywords[]`, last-import metadata.
+- `brain_notes`: parsed `.md` with `path` (unique), `title`, `content` (≤8 KB), `tags[]`, `is_partner_relevant`, `source_mtime`.
+- Import flow: browser file-picker (`webkitdirectory`) → `parseMarkdownNote` (frontmatter + inline `#tags`) → `isPartnerRelevant` flag (matches keywords or partner display_name in path/title/tags/first 400 chars) → POST to `ingest-brain-notes` edge function (upsert by `path`, optional `replace_all`).
+- AI consumes up to 8 most-recent partner-relevant notes, capped at ~6 KB total payload, as soft hints (never quoted verbatim).
+- Export: each AI suggestion has a download button (`buildObsidianNote` in `src/lib/obsidianExport.ts`) → `.md` with YAML frontmatter, drop into the user's vault.
+- Mode B (Local REST API plugin) intentionally not built.
+
+---
+
 ## 9. State & data conventions
 
 - **All server reads/writes go through TanStack Query hooks** in `src/hooks/`. Components don't call `supabase` directly.
