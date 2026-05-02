@@ -203,6 +203,15 @@ export function useAiScheduler() {
         });
       }
 
+      // Batch-mirror all rescheduled tasks to linked Google Calendars
+      try {
+        await supabase.functions.invoke("google-calendar-mirror", {
+          body: { action: "upsert", task_ids: Array.from(uniqueTasks.keys()) },
+        });
+      } catch (e) {
+        console.warn("Mirror batch upsert failed:", e);
+      }
+
       toast.success(`Rescheduled ${uniqueTasks.size} tasks`);
       setPreview(null);
     } catch (e: any) {
