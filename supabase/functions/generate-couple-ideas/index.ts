@@ -121,7 +121,17 @@ serve(async (req) => {
     if (provider === "lovable" && !lovableApiKey) throw new Error("Lovable AI is not configured");
     if (!apiUrl) throw new Error("Cloud LLM endpoint is not configured");
 
-    const messages = buildMessages(tasks, options);
+    const [partnerRes, brainRes] = await Promise.all([
+      supabase.from("partner_profile").select("*").limit(1).maybeSingle(),
+      supabase
+        .from("brain_notes")
+        .select("title, content, tags")
+        .eq("is_partner_relevant", true)
+        .order("updated_at", { ascending: false })
+        .limit(8),
+    ]);
+
+    const messages = buildMessages(tasks, options, partnerRes.data, brainRes.data || []);
     let llmResponse = await fetch(apiUrl, {
       method: "POST",
       headers,
