@@ -216,6 +216,25 @@ serve(async (req) => {
       });
     }
 
+    if (body.action === "update_mirror_settings") {
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      const updates: Record<string, unknown> = {};
+      if (typeof body.mirror_enabled === "boolean") updates.mirror_enabled = body.mirror_enabled;
+      if (typeof body.mirror_target_calendar_id === "string") updates.mirror_target_calendar_id = body.mirror_target_calendar_id;
+      if (typeof body.mirror_label === "string") updates.mirror_label = body.mirror_label.slice(0, 100) || "Focus";
+      if (typeof body.mirror_visibility === "string") updates.mirror_visibility = body.mirror_visibility;
+
+      const { error: upErr } = await supabase
+        .from("google_calendar_connections")
+        .update(updates)
+        .eq("id", body.connection_id);
+      if (upErr) throw upErr;
+
+      return new Response(JSON.stringify({ success: true }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
     return new Response(JSON.stringify({ error: "Unknown action" }), {
       status: 400,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
