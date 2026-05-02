@@ -17,20 +17,48 @@ function extractJsonFromText(text: string) {
   return JSON.parse(cleaned.slice(start, end + 1).replace(/,\s*}/g, "}").replace(/,\s*]/g, "]").replace(/[\x00-\x1F\x7F]/g, ""));
 }
 
-function buildMessages(tasks: any[], options: any) {
+const MAX_BRAIN_PAYLOAD = 6000;
+
+function trimBrain(notes: any[]): any[] {
+  const out: any[] = [];
+  let total = 0;
+  for (const n of notes || []) {
+    const excerpt = String(n.content || "").slice(0, 600);
+    const size = excerpt.length + String(n.title || "").length;
+    if (total + size > MAX_BRAIN_PAYLOAD) break;
+    out.push({ title: String(n.title || "").slice(0, 120), excerpt, tags: (n.tags || []).slice(0, 8) });
+    total += size;
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
+function buildMessages(tasks: any[], options: any, partner: any, brain: any[]) {
   const today = new Date().toISOString().slice(0, 10);
+  const partnerBlock = partner && Object.values(partner).some((v: any) => Array.isArray(v) ? v.length : !!v) ? partner : null;
+  const brainBlock = brain && brain.length ? trimBrain(brain) : null;
+
+  const userPayload: Record<string, unknown> = {
+    preferences: options,
+    couple_life_tasks: tasks.slice(0, 30),
+  };
+  if (partnerBlock) userPayload.partner_profile = partnerBlock;
+  if (brainBlock) userPayload.brain_context = brainBlock;
+
   return [
     {
       role: "system",
       content: `You are a tasteful date-planning assistant. Today is ${today}.
-Create 3 to 5 creative but practical couple activity task drafts for the user and his girlfriend.
+Create 3 to 5 creative but practical couple activity task drafts for the user and his partner.
 Use past completed activities as inspiration, consider nearby common holidays or seasonal moments, and respect the selected mood, budget, and timing.
+${partnerBlock ? `Partner profile is provided as 'partner_profile'. Treat 'dislikes' and 'food_restrictions' as HARD constraints. Lean into 'loves', 'love_language', 'favorite_places', 'favorite_brands_artists', and 'gift_wishlist' when relevant. Use 'display_name' only inside the 'reason' field, never inside task titles.` : ""}
+${brainBlock ? `'brain_context' contains the user's personal Markdown notes. Treat them as soft hints, never quote verbatim, never invent facts not present in them.` : ""}
 Do not book anything, do not claim external availability, and do not create tasks directly.
 If tool calling is unavailable, return ONLY valid JSON with a top-level suggestions array.`,
     },
     {
       role: "user",
-      content: JSON.stringify({ preferences: options, couple_life_tasks: tasks.slice(0, 30) }, null, 2),
+      content: JSON.stringify(userPayload, null, 2),
     },
   ];
 }
@@ -93,7 +121,17 @@ serve(async (req) => {
     if (provider === "lovable" && !lovableApiKey) throw new Error("Lovable AI is not configured");
     if (!apiUrl) throw new Error("Cloud LLM endpoint is not configured");
 
-    const messages = buildMessages(tasks, options);
+    const [partnerRes, brainRes] = await Promise.all([
+      supabase.from("partner_profile").select("*").limit(1).maybeSingle(),
+      supabase
+        .from("brain_notes")
+        .select("title, content, tags")
+        .eq("is_partner_relevant", true)
+        .order("updated_at", { ascending: false })
+        .limit(8),
+    ]);
+
+    const messages = buildMessages(tasks, options, partnerRes.data, brainRes.data || []);
     let llmResponse = await fetch(apiUrl, {
       method: "POST",
       headers,

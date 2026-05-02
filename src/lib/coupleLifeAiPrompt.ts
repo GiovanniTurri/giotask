@@ -40,7 +40,52 @@ export function normalizeLlmEndpoint(endpoint?: string | null) {
   return trimmed;
 }
 
-export function buildCoupleLifeAiMessages(tasks: CoupleLifeAiTaskContext[], options: CoupleLifeAiOptions) {
+export interface PartnerProfileContext {
+  display_name?: string | null;
+  birthday?: string | null;
+  anniversary_date?: string | null;
+  languages?: string[] | null;
+  loves?: string[] | null;
+  dislikes?: string[] | null;
+  food_restrictions?: string[] | null;
+  budget_default?: string | null;
+  mood_default?: string | null;
+  love_language?: string | null;
+  gift_wishlist?: string[] | null;
+  favorite_places?: string[] | null;
+  clothing_sizes?: string | null;
+  favorite_brands_artists?: string[] | null;
+  notes?: string | null;
+}
+
+export interface BrainNoteContext {
+  title: string;
+  excerpt: string;
+  tags?: string[];
+}
+
+const MAX_BRAIN_PAYLOAD = 6000;
+
+function trimBrainContext(notes: BrainNoteContext[]): BrainNoteContext[] {
+  const out: BrainNoteContext[] = [];
+  let total = 0;
+  for (const note of notes) {
+    const excerpt = (note.excerpt || "").slice(0, 600);
+    const size = excerpt.length + (note.title?.length || 0);
+    if (total + size > MAX_BRAIN_PAYLOAD) break;
+    out.push({ title: note.title.slice(0, 120), excerpt, tags: note.tags?.slice(0, 8) });
+    total += size;
+    if (out.length >= 8) break;
+  }
+  return out;
+}
+
+export function buildCoupleLifeAiMessages(
+  tasks: CoupleLifeAiTaskContext[],
+  options: CoupleLifeAiOptions,
+  partner?: PartnerProfileContext | null,
+  brain?: BrainNoteContext[] | null,
+) {
   const today = new Date().toISOString().slice(0, 10);
   const compactTasks = tasks.slice(0, 30).map((task) => ({
     title: task.title,
@@ -51,23 +96,31 @@ export function buildCoupleLifeAiMessages(tasks: CoupleLifeAiTaskContext[], opti
     time_estimate: task.time_estimate,
   }));
 
+  const partnerBlock = partner && Object.values(partner).some((v) => Array.isArray(v) ? v.length : !!v)
+    ? partner
+    : null;
+
+  const brainBlock = brain && brain.length ? trimBrainContext(brain) : null;
+
   const system = `You are a tasteful date-planning assistant. Today is ${today}.
-Create creative but practical couple activity task drafts for the user and his girlfriend.
+Create creative but practical couple activity task drafts for the user and his partner.
 Use past completed activities as inspiration, avoid repeating the exact same wording, and consider nearby common holidays or seasonal moments when relevant.
 Respect the selected mood, budget, and timing.
+${partnerBlock ? `Partner profile is provided as 'partner_profile'. Treat 'dislikes' and 'food_restrictions' as HARD constraints (never suggest them). Lean into 'loves', 'love_language', 'favorite_places', 'favorite_brands_artists', and 'gift_wishlist' when relevant. Use 'display_name' only inside the 'reason' field, never inside task titles.` : ""}
+${brainBlock ? `'brain_context' contains the user's personal Markdown notes (their second brain). Treat them as soft hints, never quote verbatim, never invent facts not present in them.` : ""}
 Return 3 to 5 suggestions.
 Do not book anything, do not claim external availability, and do not create tasks directly.
 If tool calling is unavailable, return ONLY valid JSON with a top-level suggestions array.`;
 
-  const user = JSON.stringify({
+  const userPayload: Record<string, unknown> = {
     preferences: options,
     couple_life_tasks: compactTasks,
     output_contract: {
       suggestions: [
         {
-          title: "short task title",
+          title: "short task title (no partner name)",
           description: "specific activity details",
-          reason: "why this fits based on history, mood, timing, or holiday",
+          reason: "why this fits based on history, mood, timing, holiday, or partner profile",
           suggested_date: "YYYY-MM-DD or null",
           scheduled_start_time: "HH:MM:SS or null",
           duration_minutes: "number between 45 and 240",
@@ -76,7 +129,11 @@ If tool calling is unavailable, return ONLY valid JSON with a top-level suggesti
         },
       ],
     },
-  }, null, 2);
+  };
+  if (partnerBlock) userPayload.partner_profile = partnerBlock;
+  if (brainBlock) userPayload.brain_context = brainBlock;
+
+  const user = JSON.stringify(userPayload, null, 2);
 
   return [
     { role: "system", content: system },

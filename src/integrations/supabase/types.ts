@@ -35,6 +35,72 @@ export type Database = {
         }
         Relationships: []
       }
+      brain_config: {
+        Row: {
+          created_at: string
+          id: string
+          last_import_count: number
+          last_imported_at: string | null
+          partner_keywords: string[]
+          updated_at: string
+          vault_subfolder: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          last_import_count?: number
+          last_imported_at?: string | null
+          partner_keywords?: string[]
+          updated_at?: string
+          vault_subfolder?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          last_import_count?: number
+          last_imported_at?: string | null
+          partner_keywords?: string[]
+          updated_at?: string
+          vault_subfolder?: string
+        }
+        Relationships: []
+      }
+      brain_notes: {
+        Row: {
+          content: string
+          created_at: string
+          id: string
+          is_partner_relevant: boolean
+          path: string
+          source_mtime: string | null
+          tags: string[]
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          content?: string
+          created_at?: string
+          id?: string
+          is_partner_relevant?: boolean
+          path: string
+          source_mtime?: string | null
+          tags?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          content?: string
+          created_at?: string
+          id?: string
+          is_partner_relevant?: boolean
+          path?: string
+          source_mtime?: string | null
+          tags?: string[]
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       client_tags: {
         Row: {
           color: string
@@ -240,6 +306,69 @@ export type Database = {
           id?: string
           local_api_endpoint?: string | null
           local_model?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      partner_profile: {
+        Row: {
+          anniversary_date: string | null
+          birthday: string | null
+          budget_default: string
+          clothing_sizes: string
+          created_at: string
+          dislikes: string[]
+          display_name: string
+          favorite_brands_artists: string[]
+          favorite_places: string[]
+          food_restrictions: string[]
+          gift_wishlist: string[]
+          id: string
+          languages: string[]
+          love_language: string
+          loves: string[]
+          mood_default: string
+          notes: string
+          updated_at: string
+        }
+        Insert: {
+          anniversary_date?: string | null
+          birthday?: string | null
+          budget_default?: string
+          clothing_sizes?: string
+          created_at?: string
+          dislikes?: string[]
+          display_name?: string
+          favorite_brands_artists?: string[]
+          favorite_places?: string[]
+          food_restrictions?: string[]
+          gift_wishlist?: string[]
+          id?: string
+          languages?: string[]
+          love_language?: string
+          loves?: string[]
+          mood_default?: string
+          notes?: string
+          updated_at?: string
+        }
+        Update: {
+          anniversary_date?: string | null
+          birthday?: string | null
+          budget_default?: string
+          clothing_sizes?: string
+          created_at?: string
+          dislikes?: string[]
+          display_name?: string
+          favorite_brands_artists?: string[]
+          favorite_places?: string[]
+          food_restrictions?: string[]
+          gift_wishlist?: string[]
+          id?: string
+          languages?: string[]
+          love_language?: string
+          loves?: string[]
+          mood_default?: string
+          notes?: string
           updated_at?: string
         }
         Relationships: []

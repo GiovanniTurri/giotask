@@ -1,6 +1,7 @@
 import { useMemo, useState } from "react";
 import { format, isAfter, startOfDay } from "date-fns";
-import { CalendarDays, Clock, Heart, Loader2, MapPin, Plus, Settings, Sparkles } from "lucide-react";
+import { CalendarDays, Clock, Download, Heart, Loader2, MapPin, Plus, Settings, Sparkles } from "lucide-react";
+import { downloadObsidianNote } from "@/lib/obsidianExport";
 import { Alert, AlertDescription, AlertTitle } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -284,9 +285,27 @@ export default function CoupleLifePage() {
                           {suggestion.suggested_date && <span className="flex items-center gap-1"><CalendarDays className="h-3 w-3" />{getRelativeDayLabel(suggestion.suggested_date)}</span>}
                           <span className="flex items-center gap-1"><Clock className="h-3 w-3" />{suggestion.duration_minutes}m</span>
                         </div>
-                        <Button variant="outline" size="sm" className="w-full" onClick={() => openAiSuggestion(suggestion)} disabled={!coupleTag}>
-                          <Plus className="h-3.5 w-3.5 mr-1" /> Create task
-                        </Button>
+                        <div className="flex gap-2">
+                          <Button variant="outline" size="sm" className="flex-1" onClick={() => openAiSuggestion(suggestion)} disabled={!coupleTag}>
+                            <Plus className="h-3.5 w-3.5 mr-1" /> Create task
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => downloadObsidianNote({
+                              title: suggestion.title,
+                              description: suggestion.description,
+                              reason: suggestion.reason,
+                              scheduledDate: suggestion.suggested_date,
+                              scheduledTime: suggestion.scheduled_start_time,
+                              durationMinutes: suggestion.duration_minutes,
+                              occasion: suggestion.occasion,
+                            })}
+                            title="Download as Obsidian Markdown note"
+                          >
+                            <Download className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
                       </CardContent>
                     </Card>
                   ))}

@@ -12,6 +12,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Loader2, Save, Cloud, Monitor, Sparkles, Bell, BellOff, Smartphone } from "lucide-react";
 import { toast } from "sonner";
 import { GoogleCalendarSettings } from "@/components/GoogleCalendarSettings";
+import { PartnerProfileForm } from "@/components/PartnerProfileForm";
+import { SecondBrainSettings } from "@/components/SecondBrainSettings";
 
 export default function SettingsPage() {
   const { data: config, isLoading } = useLlmConfig();
@@ -68,6 +70,12 @@ export default function SettingsPage() {
 
       {/* Google Calendar Integration */}
       <GoogleCalendarSettings />
+
+      {/* Partner profile (used by Couple Life AI) */}
+      <PartnerProfileForm />
+
+      {/* Second brain (Obsidian import) */}
+      <SecondBrainSettings />
 
       {/* Notifications */}
       <NotificationsCard />
