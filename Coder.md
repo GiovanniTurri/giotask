@@ -168,7 +168,8 @@ Rules:
 | `google-calendar-auth`    | Settings UI                      | OAuth URL, callback, list/select calendars, disconnect, **update_mirror_settings** |
 | `google-calendar-sync`    | pg_cron every 6h + on demand     | Read events from Google → `google_calendar_events`   |
 | `google-calendar-mirror`  | `useTasks` mutations + scheduler | Write tasks back to Google as private "Focus" events |
-| `generate-couple-ideas`   | Couple Life page                 | AI date suggestions                                  |
+| `generate-couple-ideas`   | Couple Life page                 | AI date suggestions (reads `partner_profile` + `brain_notes` for context) |
+| `ingest-brain-notes`      | Settings → Second brain          | Bulk upsert parsed Obsidian Markdown notes into `brain_notes`             |
 | `send-due-reminders`      | pg_cron                          | Drain `reminder_queue` and send Web Push             |
 | `push-subscribe`/`-unsubscribe`/`get-vapid-public-key` | Service worker | Web Push lifecycle |
 
