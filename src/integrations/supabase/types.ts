@@ -63,6 +63,10 @@ export type Database = {
           google_email: string
           id: string
           last_synced_at: string | null
+          mirror_enabled: boolean
+          mirror_label: string
+          mirror_target_calendar_id: string
+          mirror_visibility: string
           refresh_token: string
           selected_calendars: Json | null
           token_expires_at: string
@@ -74,6 +78,10 @@ export type Database = {
           google_email: string
           id?: string
           last_synced_at?: string | null
+          mirror_enabled?: boolean
+          mirror_label?: string
+          mirror_target_calendar_id?: string
+          mirror_visibility?: string
           refresh_token: string
           selected_calendars?: Json | null
           token_expires_at: string
@@ -85,6 +93,10 @@ export type Database = {
           google_email?: string
           id?: string
           last_synced_at?: string | null
+          mirror_enabled?: boolean
+          mirror_label?: string
+          mirror_target_calendar_id?: string
+          mirror_visibility?: string
           refresh_token?: string
           selected_calendars?: Json | null
           token_expires_at?: string
@@ -289,6 +301,36 @@ export type Database = {
           tag?: string
           task_id?: string
           title?: string
+        }
+        Relationships: []
+      }
+      task_calendar_mirrors: {
+        Row: {
+          calendar_id: string
+          connection_id: string
+          created_at: string
+          google_event_id: string
+          id: string
+          task_id: string
+          updated_at: string
+        }
+        Insert: {
+          calendar_id: string
+          connection_id: string
+          created_at?: string
+          google_event_id: string
+          id?: string
+          task_id: string
+          updated_at?: string
+        }
+        Update: {
+          calendar_id?: string
+          connection_id?: string
+          created_at?: string
+          google_event_id?: string
+          id?: string
+          task_id?: string
+          updated_at?: string
         }
         Relationships: []
       }
