@@ -101,6 +101,7 @@ serve(async (req) => {
             access_token: tokens.access_token,
             refresh_token: tokens.refresh_token,
             token_expires_at: expiresAt,
+            granted_scopes: grantedScopes,
           },
           { onConflict: "google_email", ignoreDuplicates: false }
         );
@@ -120,6 +121,7 @@ serve(async (req) => {
               access_token: tokens.access_token,
               refresh_token: tokens.refresh_token,
               token_expires_at: expiresAt,
+              granted_scopes: grantedScopes,
             })
             .eq("id", existing.id);
         } else {
@@ -128,6 +130,7 @@ serve(async (req) => {
             access_token: tokens.access_token,
             refresh_token: tokens.refresh_token,
             token_expires_at: expiresAt,
+            granted_scopes: grantedScopes,
           });
         }
       }
