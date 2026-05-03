@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { useTasks } from "@/hooks/useTasks";
 import { useClientTags } from "@/hooks/useClientTags";
 import { TaskCard } from "@/components/TaskCard";
@@ -6,7 +6,13 @@ import { TaskDialog } from "@/components/TaskDialog";
 import { TagManager } from "@/components/TagManager";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Switch } from "@/components/ui/switch";
+import { Label } from "@/components/ui/label";
 import { Plus, Tags, Loader2 } from "lucide-react";
+import { sortTasksByUrgency } from "@/lib/taskSort";
+
+const COUPLE_TAG_NAMES = ["couple life", "coppia"];
+const SHOW_COUPLE_KEY = "tasks.showCouple";
 
 export default function TasksPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -14,6 +20,10 @@ export default function TasksPage() {
   const [taskDialogOpen, setTaskDialogOpen] = useState(false);
   const [tagManagerOpen, setTagManagerOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<any>(null);
+  const [showCouple, setShowCouple] = useState<boolean>(() => {
+    if (typeof window === "undefined") return false;
+    return window.localStorage.getItem(SHOW_COUPLE_KEY) === "1";
+  });
 
   const { data: tasks, isLoading } = useTasks({
     status: statusFilter === "all" ? undefined : statusFilter,
@@ -21,11 +31,30 @@ export default function TasksPage() {
   });
   const { data: tags } = useClientTags();
 
+  const coupleTagId = useMemo(
+    () => tags?.find((t) => COUPLE_TAG_NAMES.includes(t.name.trim().toLowerCase()))?.id ?? null,
+    [tags]
+  );
+
+  const visibleTasks = useMemo(() => {
+    const base = (tasks || []).filter((t: any) =>
+      showCouple || !coupleTagId ? true : t.client_tag_id !== coupleTagId
+    );
+    return sortTasksByUrgency(base);
+  }, [tasks, coupleTagId, showCouple]);
+
+  const handleToggleCouple = (v: boolean) => {
+    setShowCouple(v);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(SHOW_COUPLE_KEY, v ? "1" : "0");
+    }
+  };
+
   const taskCounts = {
-    all: tasks?.length ?? 0,
-    todo: tasks?.filter(t => t.status === "todo").length ?? 0,
-    "in-progress": tasks?.filter(t => t.status === "in-progress").length ?? 0,
-    done: tasks?.filter(t => t.status === "done").length ?? 0,
+    all: visibleTasks.length,
+    todo: visibleTasks.filter(t => t.status === "todo").length,
+    "in-progress": visibleTasks.filter(t => t.status === "in-progress").length,
+    done: visibleTasks.filter(t => t.status === "done").length,
   };
 
   return (
