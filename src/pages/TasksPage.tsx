@@ -76,7 +76,7 @@ export default function TasksPage() {
         </div>
       </div>
 
-      <div className="flex gap-3">
+      <div className="flex flex-wrap items-center gap-3">
         <Select value={statusFilter} onValueChange={setStatusFilter}>
           <SelectTrigger className="w-36"><SelectValue /></SelectTrigger>
           <SelectContent>
@@ -101,15 +101,28 @@ export default function TasksPage() {
             ))}
           </SelectContent>
         </Select>
+
+        {coupleTagId && (
+          <div className="flex items-center gap-2 ml-auto">
+            <Switch
+              id="show-couple"
+              checked={showCouple}
+              onCheckedChange={handleToggleCouple}
+            />
+            <Label htmlFor="show-couple" className="text-sm text-muted-foreground cursor-pointer">
+              Show couple activities
+            </Label>
+          </div>
+        )}
       </div>
 
       {isLoading ? (
         <div className="flex items-center justify-center py-20">
           <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
         </div>
-      ) : tasks && tasks.length > 0 ? (
+      ) : visibleTasks.length > 0 ? (
         <div className="grid gap-3">
-          {tasks.map(task => (
+          {visibleTasks.map(task => (
             <TaskCard
               key={task.id}
               task={task}
