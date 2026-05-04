@@ -1,38 +1,36 @@
 ## Goal
 
-1. **Hide Couple Life activities from the main Tasks list by default**, with an optional toggle to show them.
-2. **Sort tasks by time-to-do**: overdue (past, not done) at the top, in-progress in the middle, future-scheduled below, and done at the bottom.
+Add a **Sort by** menu in the Tasks page so the user can choose how the task list is ordered. The current "urgency" sort stays as the default, but additional options become available.
 
-Couple Life tasks are identified the same way the Couple Life page does it: tasks whose `client_tag_id` points to a tag named `"couple life"` or `"coppia"` (case-insensitive).
+## Sort options
 
-## Changes
+1. **Urgency** (default — current behavior: overdue → in-progress → future/undated → done)
+2. **Recently updated** — `updated_at` descending (last edited first)
+3. **Scheduled date (soonest)** — `scheduled_date` ascending, undated last
 
-### `src/pages/TasksPage.tsx`
-- Resolve the couple tag id from `useClientTags()` (matching `couple life` / `coppia`, case-insensitive).
-- Add a `showCouple` state (default `false`) and a small toggle/checkbox next to the existing filters: "Show couple activities".
-- When `showCouple` is false, filter out tasks whose `client_tag_id === coupleTagId`.
-- After filtering, sort tasks with a new helper `sortTasksByUrgency` (see below) before rendering.
-- Update the header counter so totals reflect the visible (filtered) list.
+All options keep the existing "Show couple activities" filter and the status / tag filters intact — sorting is applied to the already-filtered list.
 
-### `src/lib/taskSort.ts` (new)
-Add a pure helper:
+## Implementation
 
-```ts
-export function sortTasksByUrgency(tasks: Task[]): Task[]
-```
+### 1. Extend `src/lib/taskSort.ts`
 
-Bucket order (top → bottom):
-1. **Overdue / past, not started** — `status !== "done"` and `scheduled_date < today` (or `status === "todo"` with a past date). Sort within bucket by `scheduled_date` ascending (most overdue first), then priority desc.
-2. **In progress** — `status === "in-progress"`. Sort by `scheduled_date` asc (nulls last), then priority desc.
-3. **Today / future, not started** — `status === "todo"` with `scheduled_date >= today` or no date. Sort by `scheduled_date` asc (nulls last), then priority desc.
-4. **Done** — `status === "done"`. Sort by `updated_at` desc.
+- Keep `sortTasksByUrgency` as-is.
+- Add a `TaskSortMode` union type with the 3 keys above (`"urgency" | "updated-desc" | "scheduled-asc"`).
+- Add `SORT_OPTIONS: { value: TaskSortMode; label: string }[]` for the dropdown.
+- Add `sortTasks(tasks, mode)` that dispatches to the right comparator. Each comparator is pure and handles `null`/missing values by pushing them to the end (except for date-asc, where missing dates also go last).
 
-This keeps the existing priority/created_at order from the query as a stable secondary signal but reorders so urgency dominates.
+### 2. Update `src/pages/TasksPage.tsx`
 
-### Optional polish
-- Persist the `showCouple` toggle in `localStorage` so it survives reloads.
-- Couple Life page itself is unchanged — couple tasks still show there.
+- Add `sortMode` state, default `"urgency"`, persisted to `localStorage` under key `tasks.sortMode` (mirrors the existing `tasks.showCouple` pattern).
+- Replace the `sortTasksByUrgency(base)` call inside `visibleTasks` with `sortTasks(base, sortMode)`.
+- Add a third `Select` in the filter row (next to Status and Tag filters), labeled implicitly via its placeholder, showing the current sort. Use `SORT_OPTIONS` to render `SelectItem`s.
+- Layout: keep Status + Tag + new Sort selects grouped on the left, with the "Show couple activities" switch staying on the right (`ml-auto`).
 
-## Out of scope
-- Calendar views (Day/Week/Month) keep showing all tasks including couple ones — the request is specifically about the Tasks list.
-- No DB changes.
+### 3. No backend / DB changes
+
+Sorting is fully client-side. The `useTasks` query continues to fetch with its current ordering — the client re-sorts after filtering. This keeps things simple and avoids extra network calls when the user changes sort mode.
+
+## Files touched
+
+- `src/lib/taskSort.ts` — add types, options array, and `sortTasks` dispatcher with new comparators.
+- `src/pages/TasksPage.tsx` — add sort state + persistence, render the sort `Select`, swap the sort call.
