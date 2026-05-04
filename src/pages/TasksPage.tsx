@@ -26,6 +26,11 @@ export default function TasksPage() {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(SHOW_COUPLE_KEY) === "1";
   });
+  const [sortMode, setSortMode] = useState<TaskSortMode>(() => {
+    if (typeof window === "undefined") return "urgency";
+    const stored = window.localStorage.getItem(SORT_MODE_KEY) as TaskSortMode | null;
+    return stored && VALID_SORT_MODES.includes(stored) ? stored : "urgency";
+  });
 
   const { data: tasks, isLoading } = useTasks({
     status: statusFilter === "all" ? undefined : statusFilter,
@@ -42,13 +47,21 @@ export default function TasksPage() {
     const base = (tasks || []).filter((t: any) =>
       showCouple || !coupleTagId ? true : t.client_tag_id !== coupleTagId
     );
-    return sortTasksByUrgency(base);
-  }, [tasks, coupleTagId, showCouple]);
+    return sortTasks(base, sortMode);
+  }, [tasks, coupleTagId, showCouple, sortMode]);
 
   const handleToggleCouple = (v: boolean) => {
     setShowCouple(v);
     if (typeof window !== "undefined") {
       window.localStorage.setItem(SHOW_COUPLE_KEY, v ? "1" : "0");
+    }
+  };
+
+  const handleSortChange = (v: string) => {
+    const mode = (VALID_SORT_MODES.includes(v as TaskSortMode) ? v : "urgency") as TaskSortMode;
+    setSortMode(mode);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(SORT_MODE_KEY, mode);
     }
   };
 
