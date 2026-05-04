@@ -9,10 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Plus, Tags, Loader2 } from "lucide-react";
-import { sortTasksByUrgency } from "@/lib/taskSort";
+import { sortTasks, SORT_OPTIONS, type TaskSortMode } from "@/lib/taskSort";
 
 const COUPLE_TAG_NAMES = ["couple life", "coppia"];
 const SHOW_COUPLE_KEY = "tasks.showCouple";
+const SORT_MODE_KEY = "tasks.sortMode";
+const VALID_SORT_MODES: TaskSortMode[] = ["urgency", "updated-desc", "scheduled-asc"];
 
 export default function TasksPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
