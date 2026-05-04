@@ -117,6 +117,20 @@ export default function TasksPage() {
           </SelectContent>
         </Select>
 
+        <Select value={sortMode} onValueChange={handleSortChange}>
+          <SelectTrigger className="w-52">
+            <span className="text-muted-foreground text-xs mr-1">Sort:</span>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SORT_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
         {coupleTagId && (
           <div className="flex items-center gap-2 ml-auto">
             <Switch
