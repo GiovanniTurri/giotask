@@ -9,10 +9,12 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Plus, Tags, Loader2 } from "lucide-react";
-import { sortTasksByUrgency } from "@/lib/taskSort";
+import { sortTasks, SORT_OPTIONS, type TaskSortMode } from "@/lib/taskSort";
 
 const COUPLE_TAG_NAMES = ["couple life", "coppia"];
 const SHOW_COUPLE_KEY = "tasks.showCouple";
+const SORT_MODE_KEY = "tasks.sortMode";
+const VALID_SORT_MODES: TaskSortMode[] = ["urgency", "updated-desc", "scheduled-asc"];
 
 export default function TasksPage() {
   const [statusFilter, setStatusFilter] = useState<string>("all");
@@ -23,6 +25,11 @@ export default function TasksPage() {
   const [showCouple, setShowCouple] = useState<boolean>(() => {
     if (typeof window === "undefined") return false;
     return window.localStorage.getItem(SHOW_COUPLE_KEY) === "1";
+  });
+  const [sortMode, setSortMode] = useState<TaskSortMode>(() => {
+    if (typeof window === "undefined") return "urgency";
+    const stored = window.localStorage.getItem(SORT_MODE_KEY) as TaskSortMode | null;
+    return stored && VALID_SORT_MODES.includes(stored) ? stored : "urgency";
   });
 
   const { data: tasks, isLoading } = useTasks({
@@ -40,13 +47,21 @@ export default function TasksPage() {
     const base = (tasks || []).filter((t: any) =>
       showCouple || !coupleTagId ? true : t.client_tag_id !== coupleTagId
     );
-    return sortTasksByUrgency(base);
-  }, [tasks, coupleTagId, showCouple]);
+    return sortTasks(base, sortMode);
+  }, [tasks, coupleTagId, showCouple, sortMode]);
 
   const handleToggleCouple = (v: boolean) => {
     setShowCouple(v);
     if (typeof window !== "undefined") {
       window.localStorage.setItem(SHOW_COUPLE_KEY, v ? "1" : "0");
+    }
+  };
+
+  const handleSortChange = (v: string) => {
+    const mode = (VALID_SORT_MODES.includes(v as TaskSortMode) ? v : "urgency") as TaskSortMode;
+    setSortMode(mode);
+    if (typeof window !== "undefined") {
+      window.localStorage.setItem(SORT_MODE_KEY, mode);
     }
   };
 
@@ -97,6 +112,20 @@ export default function TasksPage() {
                   <span className="h-2.5 w-2.5 rounded-full" style={{ backgroundColor: t.color }} />
                   {t.name}
                 </span>
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+
+        <Select value={sortMode} onValueChange={handleSortChange}>
+          <SelectTrigger className="w-52">
+            <span className="text-muted-foreground text-xs mr-1">Sort:</span>
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            {SORT_OPTIONS.map((opt) => (
+              <SelectItem key={opt.value} value={opt.value}>
+                {opt.label}
               </SelectItem>
             ))}
           </SelectContent>
