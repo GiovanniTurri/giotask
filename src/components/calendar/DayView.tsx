@@ -23,6 +23,7 @@ interface DayViewProps {
   onDragStart: (taskId: string) => void;
   onDrop: (date: string, hour?: number) => void;
   onTaskClick: (task: any) => void;
+  onLongPressSlot?: (date: string, hour?: number, minute?: number) => void;
 }
 
 const HOURS = Array.from({ length: 18 }, (_, i) => i + 5);
