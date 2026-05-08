@@ -67,7 +67,7 @@ export function useLongPress(
     if (Math.hypot(dx, dy) > moveThreshold) clear();
   };
 
-  const cancel = () => clear();
+  const cancel = (_e?: React.PointerEvent) => clear();
 
   const onClickCapture = (e: React.MouseEvent) => {
     if (firedRef.current) {
