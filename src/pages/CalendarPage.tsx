@@ -31,6 +31,28 @@ export default function CalendarPage() {
   const [editingTask, setEditingTask] = useState<any>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isMovingOverdue, setIsMovingOverdue] = useState(false);
+  const [createDefaults, setCreateDefaults] = useState<{
+    scheduled_date: string;
+    scheduled_start_time?: string;
+    time_estimate?: number;
+  } | null>(null);
+
+  const handleLongPressSlot = useCallback(
+    (date: string, hour?: number, minute?: number) => {
+      const defaults: { scheduled_date: string; scheduled_start_time?: string; time_estimate?: number } = {
+        scheduled_date: date,
+      };
+      if (typeof hour === "number") {
+        const m = typeof minute === "number" ? minute : 0;
+        defaults.scheduled_start_time = `${String(hour).padStart(2, "0")}:${String(m).padStart(2, "0")}:00`;
+        defaults.time_estimate = 60;
+      }
+      setCreateDefaults(defaults);
+      setEditingTask(null);
+      setDialogOpen(true);
+    },
+    []
+  );
 
   const { data: tasks, isLoading } = useTasks();
   const updateTask = useUpdateTask();
