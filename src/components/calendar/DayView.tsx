@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { format, isSameDay, isToday } from "date-fns";
 import { cn } from "@/lib/utils";
 import { TaskBlock } from "./TaskBlock";
 import { GoogleEventBlock } from "./GoogleEventBlock";
+import { useLongPress } from "@/hooks/useLongPress";
 import type { Task } from "@/hooks/useTasks";
 
 interface GoogleEvent {
