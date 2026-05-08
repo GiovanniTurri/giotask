@@ -26,9 +26,70 @@ interface MonthViewProps {
   onDrop: (date: string) => void;
   onTaskClick: (task: any) => void;
   onDayClick: (date: Date) => void;
+  onLongPressSlot?: (date: string) => void;
 }
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
+
+function DayCell({
+  day, currentDate, dayTasks, dayGEvents, onDragStart, onDrop, onTaskClick, onDayClick, onLongPressSlot,
+}: {
+  day: Date;
+  currentDate: Date;
+  dayTasks: any[];
+  dayGEvents: any[];
+  onDragStart: (id: string) => void;
+  onDrop: (date: string) => void;
+  onTaskClick: (t: any) => void;
+  onDayClick: (d: Date) => void;
+  onLongPressSlot?: (date: string) => void;
+}) {
+  const dateStr = format(day, "yyyy-MM-dd");
+  const totalItems = dayTasks.length + dayGEvents.length;
+  const longPress = useLongPress(() => onLongPressSlot?.(dateStr));
+
+  return (
+    <div
+      key={dateStr}
+      className={cn(
+        "border-b border-r p-1 transition-colors select-none",
+        !isSameMonth(day, currentDate) && "bg-muted/30",
+        isToday(day) && "bg-primary/5"
+      )}
+      style={{ touchAction: "manipulation" }}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={() => onDrop(dateStr)}
+      onClick={() => onDayClick(day)}
+      {...longPress}
+    >
+      <div className={cn(
+        "text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full",
+        isToday(day) && "bg-primary text-primary-foreground"
+      )}>
+        {format(day, "d")}
+      </div>
+      <div className="space-y-0.5 overflow-hidden">
+        {dayGEvents.slice(0, 2).map((event: any) => (
+          <GoogleEventBlock key={event.id} event={event} compact />
+        ))}
+        {dayTasks.slice(0, 3 - Math.min(dayGEvents.length, 2)).map((task: any) => (
+          <TaskBlock
+            key={task.id}
+            task={task}
+            compact
+            onDragStart={() => onDragStart(task.id)}
+            onClick={() => onTaskClick(task)}
+          />
+        ))}
+        {totalItems > 3 && (
+          <div className="text-[10px] text-muted-foreground px-1">
+            +{totalItems - 3} more
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
 
 export function MonthView({ currentDate, tasks, googleEvents = [], onDragStart, onDrop, onTaskClick, onDayClick }: MonthViewProps) {
   const monthStart = startOfMonth(currentDate);
