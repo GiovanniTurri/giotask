@@ -36,7 +36,9 @@ function parseStartTime(t: Task): { hour: number; minute: number } {
   return { hour: parseInt(parts[0], 10), minute: parseInt(parts[1] || "0", 10) };
 }
 
-export function DayView({ currentDate, tasks, googleEvents = [], onDragStart, onDrop, onTaskClick }: DayViewProps) {
+export function DayView({ currentDate, tasks, googleEvents = [], onDragStart, onDrop, onTaskClick, onLongPressSlot }: DayViewProps) {
+  const [pressInd, setPressInd] = useState<{ top: number; height: number } | null>(null);
+
   const dayTasks = tasks.filter(
     (t) => t.scheduled_date && isSameDay(new Date(t.scheduled_date), currentDate)
   );
@@ -46,6 +48,23 @@ export function DayView({ currentDate, tasks, googleEvents = [], onDragStart, on
 
   const dateStr = format(currentDate, "yyyy-MM-dd");
   const totalHeight = HOURS.length * ROW_HEIGHT;
+
+  const computeTime = (clientY: number, rect: DOMRect) => {
+    const y = Math.max(0, Math.min(clientY - rect.top, totalHeight - 1));
+    const totalMinutes = (y / ROW_HEIGHT) * 60 + FIRST_HOUR * 60;
+    const snapped = Math.round(totalMinutes / 15) * 15;
+    return { hour: Math.floor(snapped / 60), minute: snapped % 60, top: ((snapped - FIRST_HOUR * 60) / 60) * ROW_HEIGHT };
+  };
+
+  const longPress = useLongPress((e) => {
+    const target = e.target as HTMLElement | null;
+    if (target?.closest("[data-task-block], [data-google-event]")) return;
+    const container = e.currentTarget as HTMLElement;
+    const rect = container.getBoundingClientRect();
+    const { hour, minute } = computeTime(e.clientY, rect);
+    setPressInd(null);
+    onLongPressSlot?.(dateStr, hour, minute);
+  });
 
   return (
     <div className="border rounded-lg overflow-auto max-h-[calc(100vh-220px)]">
@@ -77,8 +96,8 @@ export function DayView({ currentDate, tasks, googleEvents = [], onDragStart, on
 
         {/* Day column */}
         <div
-          className="relative"
-          style={{ height: totalHeight }}
+          className="relative select-none"
+          style={{ height: totalHeight, touchAction: "pan-y" }}
           onDragOver={(e) => e.preventDefault()}
           onDrop={(e) => {
             const rect = e.currentTarget.getBoundingClientRect();
@@ -86,15 +105,37 @@ export function DayView({ currentDate, tasks, googleEvents = [], onDragStart, on
             const hour = Math.floor(y / ROW_HEIGHT) + FIRST_HOUR;
             onDrop(dateStr, hour);
           }}
+          {...longPress}
+          onPointerDown={(e) => {
+            const target = e.target as HTMLElement | null;
+            if (!target?.closest("[data-task-block], [data-google-event]")) {
+              const rect = e.currentTarget.getBoundingClientRect();
+              const { top } = computeTime(e.clientY, rect);
+              setPressInd({ top, height: ROW_HEIGHT });
+            }
+            longPress.onPointerDown(e);
+          }}
+          onPointerUp={(e) => { setPressInd(null); longPress.onPointerUp(e); }}
+          onPointerCancel={(e) => { setPressInd(null); longPress.onPointerCancel(e); }}
+          onPointerLeave={(e) => { setPressInd(null); longPress.onPointerLeave(e); }}
+          onPointerMove={(e) => longPress.onPointerMove(e)}
         >
           {/* Hour grid lines */}
           {HOURS.map((hour) => (
             <div
               key={hour}
-              className="border-b absolute w-full"
+              className="border-b absolute w-full pointer-events-none"
               style={{ top: (hour - FIRST_HOUR) * ROW_HEIGHT, height: ROW_HEIGHT }}
             />
           ))}
+
+          {/* Long-press indicator */}
+          {pressInd && (
+            <div
+              className="absolute left-0 right-0 bg-primary/15 border border-primary/40 rounded-sm animate-pulse pointer-events-none z-[1]"
+              style={{ top: pressInd.top, height: pressInd.height }}
+            />
+          )}
 
           {/* Google events */}
           {dayGEvents.map((event) => {
@@ -107,6 +148,7 @@ export function DayView({ currentDate, tasks, googleEvents = [], onDragStart, on
             return (
               <div
                 key={event.id}
+                data-google-event
                 className="absolute left-0 right-0 px-1 z-[2]"
                 style={{ top, height }}
               >
@@ -134,6 +176,7 @@ export function DayView({ currentDate, tasks, googleEvents = [], onDragStart, on
             return (
               <div
                 key={task.id}
+                data-task-block
                 className="absolute z-[3]"
                 style={{
                   top,
