@@ -173,7 +173,7 @@ function parseStartTime(t: Task): { hour: number; minute: number } {
   return { hour: parseInt(parts[0], 10), minute: parseInt(parts[1] || "0", 10) };
 }
 
-export function WeekView({ currentDate, tasks, googleEvents = [], onDragStart, onDrop, onTaskClick }: WeekViewProps) {
+export function WeekView({ currentDate, tasks, googleEvents = [], onDragStart, onDrop, onTaskClick, onLongPressSlot }: WeekViewProps) {
   const weekStart = startOfWeek(currentDate);
   const days = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
 
@@ -227,88 +227,18 @@ export function WeekView({ currentDate, tasks, googleEvents = [], onDragStart, o
         {/* Day columns */}
         {days.map((day) => {
           const dateStr = format(day, "yyyy-MM-dd");
-          const dayTasks = getTasksForDay(day);
-          const dayGEvents = getGoogleEventsForDay(day);
-
           return (
-            <div
+            <DayColumn
               key={dateStr}
-              className="border-r relative"
-              style={{ height: totalHeight }}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={(e) => {
-                const rect = e.currentTarget.getBoundingClientRect();
-                const y = e.clientY - rect.top;
-                const hour = Math.floor(y / ROW_HEIGHT) + FIRST_HOUR;
-                onDrop(dateStr, hour);
-              }}
-            >
-              {/* Hour grid lines */}
-              {HOURS.map((hour) => (
-                <div
-                  key={hour}
-                  className="border-b absolute w-full"
-                  style={{ top: (hour - FIRST_HOUR) * ROW_HEIGHT, height: ROW_HEIGHT }}
-                />
-              ))}
-
-              {/* Google events */}
-              {dayGEvents.map((event) => {
-                const start = new Date(event.start_time);
-                const end = new Date(event.end_time);
-                const startH = start.getHours() + start.getMinutes() / 60;
-                const endH = end.getHours() + end.getMinutes() / 60;
-                const top = (startH - FIRST_HOUR) * ROW_HEIGHT;
-                const height = Math.max((endH - startH) * ROW_HEIGHT, 20);
-                return (
-                  <div
-                    key={event.id}
-                    className="absolute left-0 right-0 px-0.5 z-[2]"
-                    style={{ top, height }}
-                  >
-                    <GoogleEventBlock event={event} />
-                  </div>
-                );
-              })}
-
-              {/* Tasks */}
-              {dayTasks.map((task, idx) => {
-                const { hour, minute } = parseStartTime(task);
-                const top = (hour + minute / 60 - FIRST_HOUR) * ROW_HEIGHT;
-                const height = Math.max((task.time_estimate / 60) * ROW_HEIGHT, 20);
-                // Simple overlap offset
-                const overlapping = dayTasks.filter((other, oi) => {
-                  if (oi >= idx) return false;
-                  const os = parseStartTime(other);
-                  const otherStart = os.hour * 60 + os.minute;
-                  const otherEnd = otherStart + other.time_estimate;
-                  const thisStart = hour * 60 + minute;
-                  const thisEnd = thisStart + task.time_estimate;
-                  return thisStart < otherEnd && thisEnd > otherStart;
-                });
-                const leftOffset = overlapping.length * 20;
-
-                return (
-                  <div
-                    key={task.id}
-                    className="absolute z-[3]"
-                    style={{
-                      top,
-                      height,
-                      left: `${leftOffset + 2}px`,
-                      right: "2px",
-                    }}
-                  >
-                    <TaskBlock
-                      task={task}
-                      showTime
-                      onDragStart={() => onDragStart(task.id)}
-                      onClick={() => onTaskClick(task)}
-                    />
-                  </div>
-                );
-              })}
-            </div>
+              day={day}
+              dateStr={dateStr}
+              dayTasks={getTasksForDay(day)}
+              dayGEvents={getGoogleEventsForDay(day)}
+              onDragStart={onDragStart}
+              onDrop={onDrop}
+              onTaskClick={onTaskClick}
+              onLongPressSlot={onLongPressSlot}
+            />
           );
         })}
       </div>
