@@ -242,7 +242,15 @@ export default function CalendarPage() {
         </>
       )}
 
-      <TaskDialog open={dialogOpen} onOpenChange={setDialogOpen} task={editingTask} />
+      <TaskDialog
+        open={dialogOpen}
+        onOpenChange={(o) => {
+          setDialogOpen(o);
+          if (!o) setCreateDefaults(null);
+        }}
+        task={editingTask}
+        initialValues={editingTask ? undefined : createDefaults ?? undefined}
+      />
     </div>
   );
 }
