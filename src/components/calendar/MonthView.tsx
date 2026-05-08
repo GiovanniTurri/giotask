@@ -5,6 +5,7 @@ import {
 import { cn } from "@/lib/utils";
 import { TaskBlock } from "./TaskBlock";
 import { GoogleEventBlock } from "./GoogleEventBlock";
+import { useLongPress } from "@/hooks/useLongPress";
 import type { Task } from "@/hooks/useTasks";
 
 interface GoogleEvent {
@@ -25,11 +26,72 @@ interface MonthViewProps {
   onDrop: (date: string) => void;
   onTaskClick: (task: any) => void;
   onDayClick: (date: Date) => void;
+  onLongPressSlot?: (date: string) => void;
 }
 
 const WEEKDAYS = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
 
-export function MonthView({ currentDate, tasks, googleEvents = [], onDragStart, onDrop, onTaskClick, onDayClick }: MonthViewProps) {
+function DayCell({
+  day, currentDate, dayTasks, dayGEvents, onDragStart, onDrop, onTaskClick, onDayClick, onLongPressSlot,
+}: {
+  day: Date;
+  currentDate: Date;
+  dayTasks: any[];
+  dayGEvents: any[];
+  onDragStart: (id: string) => void;
+  onDrop: (date: string) => void;
+  onTaskClick: (t: any) => void;
+  onDayClick: (d: Date) => void;
+  onLongPressSlot?: (date: string) => void;
+}) {
+  const dateStr = format(day, "yyyy-MM-dd");
+  const totalItems = dayTasks.length + dayGEvents.length;
+  const longPress = useLongPress(() => onLongPressSlot?.(dateStr));
+
+  return (
+    <div
+      key={dateStr}
+      className={cn(
+        "border-b border-r p-1 transition-colors select-none",
+        !isSameMonth(day, currentDate) && "bg-muted/30",
+        isToday(day) && "bg-primary/5"
+      )}
+      style={{ touchAction: "manipulation" }}
+      onDragOver={(e) => e.preventDefault()}
+      onDrop={() => onDrop(dateStr)}
+      onClick={() => onDayClick(day)}
+      {...longPress}
+    >
+      <div className={cn(
+        "text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full",
+        isToday(day) && "bg-primary text-primary-foreground"
+      )}>
+        {format(day, "d")}
+      </div>
+      <div className="space-y-0.5 overflow-hidden">
+        {dayGEvents.slice(0, 2).map((event: any) => (
+          <GoogleEventBlock key={event.id} event={event} compact />
+        ))}
+        {dayTasks.slice(0, 3 - Math.min(dayGEvents.length, 2)).map((task: any) => (
+          <TaskBlock
+            key={task.id}
+            task={task}
+            compact
+            onDragStart={() => onDragStart(task.id)}
+            onClick={() => onTaskClick(task)}
+          />
+        ))}
+        {totalItems > 3 && (
+          <div className="text-[10px] text-muted-foreground px-1">
+            +{totalItems - 3} more
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+export function MonthView({ currentDate, tasks, googleEvents = [], onDragStart, onDrop, onTaskClick, onDayClick, onLongPressSlot }: MonthViewProps) {
   const monthStart = startOfMonth(currentDate);
   const monthEnd = endOfMonth(currentDate);
   const calendarStart = startOfWeek(monthStart);
@@ -52,51 +114,20 @@ export function MonthView({ currentDate, tasks, googleEvents = [], onDragStart, 
         ))}
       </div>
       <div className="grid grid-cols-7 auto-rows-[minmax(100px,1fr)]">
-        {days.map((day) => {
-          const dayTasks = getTasksForDay(day);
-          const dayGEvents = getGoogleEventsForDay(day);
-          const dateStr = format(day, "yyyy-MM-dd");
-          const totalItems = dayTasks.length + dayGEvents.length;
-          return (
-            <div
-              key={dateStr}
-              className={cn(
-                "border-b border-r p-1 transition-colors",
-                !isSameMonth(day, currentDate) && "bg-muted/30",
-                isToday(day) && "bg-primary/5"
-              )}
-              onDragOver={(e) => e.preventDefault()}
-              onDrop={() => onDrop(dateStr)}
-              onClick={() => onDayClick(day)}
-            >
-              <div className={cn(
-                "text-xs font-medium mb-1 w-6 h-6 flex items-center justify-center rounded-full",
-                isToday(day) && "bg-primary text-primary-foreground"
-              )}>
-                {format(day, "d")}
-              </div>
-              <div className="space-y-0.5 overflow-hidden">
-                {dayGEvents.slice(0, 2).map((event) => (
-                  <GoogleEventBlock key={event.id} event={event} compact />
-                ))}
-                {dayTasks.slice(0, 3 - Math.min(dayGEvents.length, 2)).map((task) => (
-                  <TaskBlock
-                    key={task.id}
-                    task={task}
-                    compact
-                    onDragStart={() => onDragStart(task.id)}
-                    onClick={() => onTaskClick(task)}
-                  />
-                ))}
-                {totalItems > 3 && (
-                  <div className="text-[10px] text-muted-foreground px-1">
-                    +{totalItems - 3} more
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
+        {days.map((day) => (
+          <DayCell
+            key={format(day, "yyyy-MM-dd")}
+            day={day}
+            currentDate={currentDate}
+            dayTasks={getTasksForDay(day)}
+            dayGEvents={getGoogleEventsForDay(day)}
+            onDragStart={onDragStart}
+            onDrop={onDrop}
+            onTaskClick={onTaskClick}
+            onDayClick={onDayClick}
+            onLongPressSlot={onLongPressSlot}
+          />
+        ))}
       </div>
     </div>
   );
