@@ -214,6 +214,7 @@ export default function CalendarPage() {
               onDrop={handleDrop}
               onTaskClick={handleTaskClick}
               onDayClick={handleDayClick}
+              onLongPressSlot={handleLongPressSlot}
             />
           )}
           {view === "week" && (
@@ -224,6 +225,7 @@ export default function CalendarPage() {
               onDragStart={handleDragStart}
               onDrop={handleDrop}
               onTaskClick={handleTaskClick}
+              onLongPressSlot={handleLongPressSlot}
             />
           )}
           {view === "day" && (
@@ -234,6 +236,7 @@ export default function CalendarPage() {
               onDragStart={handleDragStart}
               onDrop={handleDrop}
               onTaskClick={handleTaskClick}
+              onLongPressSlot={handleLongPressSlot}
             />
           )}
         </>
