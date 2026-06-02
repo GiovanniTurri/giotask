@@ -284,6 +284,7 @@ export type Database = {
           id: string
           local_api_endpoint: string | null
           local_model: string | null
+          local_models: string[]
           updated_at: string
         }
         Insert: {
@@ -295,6 +296,7 @@ export type Database = {
           id?: string
           local_api_endpoint?: string | null
           local_model?: string | null
+          local_models?: string[]
           updated_at?: string
         }
         Update: {
@@ -306,6 +308,7 @@ export type Database = {
           id?: string
           local_api_endpoint?: string | null
           local_model?: string | null
+          local_models?: string[]
           updated_at?: string
         }
         Relationships: []

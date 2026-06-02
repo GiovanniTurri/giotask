@@ -1,0 +1,1 @@
+ALTER TABLE public.llm_config ADD COLUMN IF NOT EXISTS local_models text[] NOT NULL DEFAULT '{}'::text[];

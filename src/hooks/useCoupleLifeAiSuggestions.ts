@@ -13,6 +13,7 @@ import {
   type PartnerProfileContext,
   type BrainNoteContext,
 } from "@/lib/coupleLifeAiPrompt";
+import { callLocalLlmWithFallback, resolveLocalModels } from "@/lib/localLlmFallback";
 import { toast } from "sonner";
 
 function singleMessageFallback(messages: { role: string; content: string }[]) {
@@ -66,35 +67,31 @@ export function useCoupleLifeAiSuggestions() {
         const [partner, brain] = await Promise.all([fetchPartnerContext(), fetchBrainContext()]);
         const messages = buildCoupleLifeAiMessages(tasks, options, partner, brain);
         const endpoint = normalizeLlmEndpoint(llmConfig?.local_api_endpoint);
-        const model = llmConfig?.local_model || "llama3";
-        const attempts = [
-          { model, messages, tools: [coupleLifeIdeasTool], temperature: 0.8, stream: false },
-          { model, messages: singleMessageFallback(messages), temperature: 0.8, stream: false },
-        ];
+        const models = resolveLocalModels(llmConfig);
 
-        let response: Response | null = null;
-        let lastErrorText = "";
-        for (const payload of attempts) {
-          response = await fetch(endpoint, {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify(payload),
-          });
-          if (response.ok) break;
-          lastErrorText = await response.text();
-          if (!/tool|function|messages|content|role/i.test(lastErrorText)) break;
+        const { data: parsedIdeas, modelUsed } = await callLocalLlmWithFallback<CoupleLifeAiSuggestion[]>({
+          endpoint,
+          models,
+          buildPayloads: (model) => [
+            { model, messages, tools: [coupleLifeIdeasTool], temperature: 0.8, stream: false },
+            { model, messages: singleMessageFallback(messages), temperature: 0.8, stream: false },
+          ],
+          parseResponse: (result) => {
+            const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
+            return toolCall
+              ? parseCoupleLifeAiSuggestions(JSON.parse(toolCall.function.arguments))
+              : parseCoupleLifeAiSuggestions(extractAssistantText(result.choices?.[0]?.message?.content));
+          },
+        });
+
+        if (models.length > 1 && modelUsed !== models[0]) {
+          toast.info(`Primary model unavailable — used "${modelUsed}" instead.`);
         }
-
-        if (!response?.ok) throw new Error(`Local LLM returned ${response?.status ?? "unknown"}: ${lastErrorText || "Empty response"}`);
-        const result = await response.json();
-        const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
-        const parsedIdeas = toolCall
-          ? parseCoupleLifeAiSuggestions(JSON.parse(toolCall.function.arguments))
-          : parseCoupleLifeAiSuggestions(extractAssistantText(result.choices?.[0]?.message?.content));
         setIdeas(parsedIdeas);
         toast.success("Creative ideas generated");
         return parsedIdeas;
       }
+
 
       const { data, error } = await supabase.functions.invoke("generate-couple-ideas", {
         body: { tasks, options },

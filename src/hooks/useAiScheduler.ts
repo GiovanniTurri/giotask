@@ -3,7 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUpdateTask } from "@/hooks/useTasks";
 import { useLlmConfig } from "@/hooks/useLlmConfig";
 import { buildLocalSystemPrompt, formatTasksForPrompt } from "@/lib/schedulerPrompt";
+import { callLocalLlmWithFallback, resolveLocalModels } from "@/lib/localLlmFallback";
 import { toast } from "sonner";
+
 
 interface ScheduleEntry {
   task_id: string;
@@ -99,7 +101,8 @@ export function useAiScheduler() {
     const today = new Date().toISOString().split("T")[0];
     const taskList = formatTasksForPrompt(tasks);
     const endpoint = normalizeLocalEndpoint(llmConfig?.local_api_endpoint);
-    const model = llmConfig?.local_model || "llama3";
+    const models = resolveLocalModels(llmConfig);
+
     const messages = [
       { role: "system", content: buildLocalSystemPrompt(today) },
       { role: "user", content: `Here are the tasks to schedule:\n${JSON.stringify(taskList, null, 2)}` },
@@ -111,45 +114,28 @@ export function useAiScheduler() {
       },
     ];
 
-    const payloadAttempts = [
-      { model, messages, temperature: 0.2, stream: false },
-      { model, messages: fallbackSingleMessage, temperature: 0.2, stream: false },
-    ];
+    const { data: schedule, modelUsed } = await callLocalLlmWithFallback<ScheduleEntry[]>({
+      endpoint,
+      models,
+      buildPayloads: (model) => [
+        { model, messages, temperature: 0.2, stream: false },
+        { model, messages: fallbackSingleMessage, temperature: 0.2, stream: false },
+      ],
+      parseResponse: (result) => {
+        const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
+        if (toolCall) return parseSchedulePayload(JSON.parse(toolCall.function.arguments));
+        const content = extractMessageText(result.choices?.[0]?.message?.content);
+        if (content) return extractJsonFromText(content);
+        throw new Error("No usable response from local LLM");
+      },
+    });
 
-    let response: Response | null = null;
-    let lastErrorText = "";
-
-    for (const payload of payloadAttempts) {
-      response = await fetch(endpoint, {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(payload),
-      });
-
-      if (response.ok) break;
-
-      lastErrorText = await response.text();
-      if (!/messages|content|role/i.test(lastErrorText)) break;
+    if (models.length > 1 && modelUsed !== models[0]) {
+      toast.info(`Primary model unavailable — used "${modelUsed}" instead.`);
     }
-
-    if (!response || !response.ok) {
-      throw new Error(`Local LLM returned ${response?.status ?? "unknown"}: ${lastErrorText || "Empty response"}`);
-    }
-
-    const result = await response.json();
-
-    const toolCall = result.choices?.[0]?.message?.tool_calls?.[0];
-    if (toolCall) {
-      return parseSchedulePayload(JSON.parse(toolCall.function.arguments));
-    }
-
-    const content = extractMessageText(result.choices?.[0]?.message?.content);
-    if (content) {
-      return extractJsonFromText(content);
-    }
-
-    throw new Error("No usable response from local LLM");
+    return schedule;
   };
+
 
   const fetchSchedule = async () => {
     setIsScheduling(true);

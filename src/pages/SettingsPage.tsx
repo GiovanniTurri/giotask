@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Save, Cloud, Monitor, Sparkles, Bell, BellOff, Smartphone } from "lucide-react";
+import { Loader2, Save, Cloud, Monitor, Sparkles, Bell, BellOff, Smartphone, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
 import { GoogleCalendarSettings } from "@/components/GoogleCalendarSettings";
 import { PartnerProfileForm } from "@/components/PartnerProfileForm";
@@ -26,10 +26,18 @@ export default function SettingsPage() {
     cloud_model: "",
     local_api_endpoint: "",
     local_model: "",
+    local_models: ["", "", "", "", ""] as string[],
   });
 
   useEffect(() => {
     if (config) {
+      const existing = (config.local_models as string[] | null) || [];
+      const seeded = existing.length
+        ? existing
+        : config.local_model
+          ? [config.local_model]
+          : [];
+      const padded = [...seeded, "", "", "", "", ""].slice(0, 5);
       setForm({
         active_provider: config.active_provider || "lovable",
         cloud_api_endpoint: config.cloud_api_endpoint || "",
@@ -37,6 +45,7 @@ export default function SettingsPage() {
         cloud_model: config.cloud_model || "",
         local_api_endpoint: config.local_api_endpoint || "",
         local_model: config.local_model || "",
+        local_models: padded,
       });
     }
   }, [config]);
@@ -44,7 +53,17 @@ export default function SettingsPage() {
   const handleSave = async () => {
     if (!config) return;
     try {
-      await updateConfig.mutateAsync({ id: config.id, ...form });
+      const cleanModels = form.local_models.map((m) => m.trim()).filter(Boolean);
+      await updateConfig.mutateAsync({
+        id: config.id,
+        active_provider: form.active_provider,
+        cloud_api_endpoint: form.cloud_api_endpoint,
+        cloud_api_key: form.cloud_api_key,
+        cloud_model: form.cloud_model,
+        local_api_endpoint: form.local_api_endpoint,
+        local_model: cleanModels[0] || form.local_model,
+        local_models: cleanModels,
+      });
       toast.success("Settings saved");
     } catch (e: any) {
       toast.error(e.message);
@@ -52,6 +71,22 @@ export default function SettingsPage() {
   };
 
   const update = (key: string, value: string) => setForm((p) => ({ ...p, [key]: value }));
+
+  const updateModelAt = (idx: number, value: string) =>
+    setForm((p) => {
+      const next = [...p.local_models];
+      next[idx] = value;
+      return { ...p, local_models: next };
+    });
+
+  const moveModel = (idx: number, dir: -1 | 1) =>
+    setForm((p) => {
+      const next = [...p.local_models];
+      const target = idx + dir;
+      if (target < 0 || target >= next.length) return p;
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return { ...p, local_models: next };
+    });
 
   if (isLoading) {
     return (
@@ -174,14 +209,48 @@ export default function SettingsPage() {
               placeholder="http://localhost:1234/v1/chat/completions"
             />
           </div>
-          <div>
-            <Label className="text-xs text-muted-foreground">Model</Label>
-            <Input
-              value={form.local_model}
-              onChange={(e) => update("local_model", e.target.value)}
-              placeholder="llama3"
-            />
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Models (ordered fallback list)</Label>
+            <p className="text-xs text-muted-foreground">
+              The app tries Model 1 first. If LM Studio cannot load it or the request fails, it
+              automatically falls back to the next one in the list.
+            </p>
+            {form.local_models.map((value, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <span className="w-6 text-xs text-muted-foreground tabular-nums text-right">
+                  {idx + 1}.
+                </span>
+                <Input
+                  value={value}
+                  onChange={(e) => updateModelAt(idx, e.target.value)}
+                  placeholder={idx === 0 ? "llama-3.1-8b-instruct (primary)" : `fallback model ${idx + 1}`}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={() => moveModel(idx, -1)}
+                  disabled={idx === 0}
+                  aria-label="Move up"
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={() => moveModel(idx, 1)}
+                  disabled={idx === form.local_models.length - 1}
+                  aria-label="Move down"
+                >
+                  <ArrowDown className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
           </div>
+
         </div>
       </Card>
 
