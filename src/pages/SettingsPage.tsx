@@ -209,14 +209,48 @@ export default function SettingsPage() {
               placeholder="http://localhost:1234/v1/chat/completions"
             />
           </div>
-          <div>
-            <Label className="text-xs text-muted-foreground">Model</Label>
-            <Input
-              value={form.local_model}
-              onChange={(e) => update("local_model", e.target.value)}
-              placeholder="llama3"
-            />
+          <div className="space-y-2">
+            <Label className="text-xs text-muted-foreground">Models (ordered fallback list)</Label>
+            <p className="text-xs text-muted-foreground">
+              The app tries Model 1 first. If LM Studio cannot load it or the request fails, it
+              automatically falls back to the next one in the list.
+            </p>
+            {form.local_models.map((value, idx) => (
+              <div key={idx} className="flex items-center gap-2">
+                <span className="w-6 text-xs text-muted-foreground tabular-nums text-right">
+                  {idx + 1}.
+                </span>
+                <Input
+                  value={value}
+                  onChange={(e) => updateModelAt(idx, e.target.value)}
+                  placeholder={idx === 0 ? "llama-3.1-8b-instruct (primary)" : `fallback model ${idx + 1}`}
+                />
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={() => moveModel(idx, -1)}
+                  disabled={idx === 0}
+                  aria-label="Move up"
+                >
+                  <ArrowUp className="h-4 w-4" />
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="icon"
+                  className="h-8 w-8 shrink-0"
+                  onClick={() => moveModel(idx, 1)}
+                  disabled={idx === form.local_models.length - 1}
+                  aria-label="Move down"
+                >
+                  <ArrowDown className="h-4 w-4" />
+                </Button>
+              </div>
+            ))}
           </div>
+
         </div>
       </Card>
 
