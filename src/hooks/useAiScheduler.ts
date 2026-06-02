@@ -3,7 +3,9 @@ import { supabase } from "@/integrations/supabase/client";
 import { useUpdateTask } from "@/hooks/useTasks";
 import { useLlmConfig } from "@/hooks/useLlmConfig";
 import { buildLocalSystemPrompt, formatTasksForPrompt } from "@/lib/schedulerPrompt";
+import { callLocalLlmWithFallback, resolveLocalModels } from "@/lib/localLlmFallback";
 import { toast } from "sonner";
+
 
 interface ScheduleEntry {
   task_id: string;
