@@ -13,6 +13,7 @@ import {
   type PartnerProfileContext,
   type BrainNoteContext,
 } from "@/lib/coupleLifeAiPrompt";
+import { callLocalLlmWithFallback, resolveLocalModels } from "@/lib/localLlmFallback";
 import { toast } from "sonner";
 
 function singleMessageFallback(messages: { role: string; content: string }[]) {
