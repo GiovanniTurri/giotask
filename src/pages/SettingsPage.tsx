@@ -26,10 +26,18 @@ export default function SettingsPage() {
     cloud_model: "",
     local_api_endpoint: "",
     local_model: "",
+    local_models: ["", "", "", "", ""] as string[],
   });
 
   useEffect(() => {
     if (config) {
+      const existing = (config.local_models as string[] | null) || [];
+      const seeded = existing.length
+        ? existing
+        : config.local_model
+          ? [config.local_model]
+          : [];
+      const padded = [...seeded, "", "", "", "", ""].slice(0, 5);
       setForm({
         active_provider: config.active_provider || "lovable",
         cloud_api_endpoint: config.cloud_api_endpoint || "",
@@ -37,6 +45,7 @@ export default function SettingsPage() {
         cloud_model: config.cloud_model || "",
         local_api_endpoint: config.local_api_endpoint || "",
         local_model: config.local_model || "",
+        local_models: padded,
       });
     }
   }, [config]);
@@ -44,7 +53,17 @@ export default function SettingsPage() {
   const handleSave = async () => {
     if (!config) return;
     try {
-      await updateConfig.mutateAsync({ id: config.id, ...form });
+      const cleanModels = form.local_models.map((m) => m.trim()).filter(Boolean);
+      await updateConfig.mutateAsync({
+        id: config.id,
+        active_provider: form.active_provider,
+        cloud_api_endpoint: form.cloud_api_endpoint,
+        cloud_api_key: form.cloud_api_key,
+        cloud_model: form.cloud_model,
+        local_api_endpoint: form.local_api_endpoint,
+        local_model: cleanModels[0] || form.local_model,
+        local_models: cleanModels,
+      });
       toast.success("Settings saved");
     } catch (e: any) {
       toast.error(e.message);
@@ -52,6 +71,22 @@ export default function SettingsPage() {
   };
 
   const update = (key: string, value: string) => setForm((p) => ({ ...p, [key]: value }));
+
+  const updateModelAt = (idx: number, value: string) =>
+    setForm((p) => {
+      const next = [...p.local_models];
+      next[idx] = value;
+      return { ...p, local_models: next };
+    });
+
+  const moveModel = (idx: number, dir: -1 | 1) =>
+    setForm((p) => {
+      const next = [...p.local_models];
+      const target = idx + dir;
+      if (target < 0 || target >= next.length) return p;
+      [next[idx], next[target]] = [next[target], next[idx]];
+      return { ...p, local_models: next };
+    });
 
   if (isLoading) {
     return (
