@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Switch } from "@/components/ui/switch";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Loader2, Save, Cloud, Monitor, Sparkles, Bell, BellOff, Smartphone } from "lucide-react";
+import { Loader2, Save, Cloud, Monitor, Sparkles, Bell, BellOff, Smartphone, ArrowUp, ArrowDown } from "lucide-react";
 import { toast } from "sonner";
 import { GoogleCalendarSettings } from "@/components/GoogleCalendarSettings";
 import { PartnerProfileForm } from "@/components/PartnerProfileForm";
