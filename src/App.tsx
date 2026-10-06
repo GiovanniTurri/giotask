@@ -14,7 +14,9 @@ import MagicLandingPage from "./pages/MagicLandingPage";
 import NotFound from "./pages/NotFound";
 import { useReminders } from "@/hooks/useReminders";
 
-const queryClient = new QueryClient();
+const queryClient = new QueryClient({
+  defaultOptions: { queries: { staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false } },
+});
 
 function RemindersMount() {
   useReminders();

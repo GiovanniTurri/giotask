@@ -30,18 +30,19 @@ Deno.serve(async (req) => {
 
     webpush.setVapidDetails(subject, publicKey, privateKey);
 
-    const nowIso = new Date().toISOString();
-    const lowerBoundIso = new Date(Date.now() - 60 * 60 * 1000).toISOString();
+    // Runs every 30 min during daytime: send anything overdue (catch-up from night)
+    // plus anything due before the next run.
+    const horizonIso = new Date(Date.now() + 30 * 60 * 1000).toISOString();
+    const lowerBoundIso = new Date(Date.now() - 24 * 60 * 60 * 1000).toISOString();
 
-    // Fetch due reminders
     const { data: due, error: dueErr } = await supabase
       .from("reminder_queue")
       .select("*")
       .is("sent_at", null)
-      .lte("fire_at", nowIso)
+      .lte("fire_at", horizonIso)
       .gte("fire_at", lowerBoundIso)
       .order("fire_at", { ascending: true })
-      .limit(100);
+      .limit(200);
     if (dueErr) throw dueErr;
 
     if (!due || due.length === 0) {
