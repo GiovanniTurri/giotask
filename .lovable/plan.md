@@ -1,72 +1,29 @@
 ## Goal
 
-Replace the single "Model" text field for the Local LLM provider with an **ordered list of up to 5 model names**. At runtime, the app tries model #1 first; if the request fails (network error, non-OK response, empty/invalid reply, or timeout), it automatically retries with model #2, then #3, etc., until one succeeds or the list is exhausted.
+Stop the reminder system from keeping the backend awake around the clock, so it uses fewer credits. Your plan is adapted below to how this app actually stores reminders.
 
-This works with LM Studio's OpenAI-compatible server because LM Studio Just-In-Time loads any installed model whose name is passed in the `model` field. If a name isn't available, LM Studio returns an error — which we detect and fall back from.
+## Step 0: Check what's scheduled now
+
+The backend was asleep while this plan was written, so the current scheduled jobs couldn't be read. The first step is to list them: the every-minute reminder job (`send-due-reminders`) and the 6-hour Google Calendar sync. The final schedule depends on what's found.
 
 ## Changes
 
-### 1. Database (`llm_config` table)
+1. **Reminder job: every 30 min, 08:00–20:00 Rome only.** Unschedule the every-minute job and add one on `*/30 6-19 * * *` (UTC). That's at most 28 runs a day instead of 1,440, and none at night.
+2. **Skip the call when nothing is due.** The job's SQL calls the reminder function only when this check finds something:
+   `EXISTS (SELECT 1 FROM reminder_queue WHERE sent_at IS NULL AND fire_at <= now() + interval '30 min')`.
+   This app uses `reminder_queue.fire_at` / `sent_at`, not `remind_at` / `reminder_sent_at`.
+3. **Catch up missed reminders.** In `send-due-reminders`, drop the 1-hour lower bound so a reminder due during the night is sent at 08:00 instead of being lost. Also send reminders due within the next 30 minutes, since a run can come up to 30 minutes late. The client sync already skips reminders more than 15 minutes in the past. That limit stays for new rows only, so the night backlog still goes out.
+4. **Never send twice.** This already works: each reminder is stamped with `sent_at` and dead push subscriptions are removed. No change needed.
+5. **Combine background jobs.** Move the Google Calendar sync from every 6 hours to the morning run (05:00 UTC) plus one midday run. Merge it with any other daily jobs found in Step 0.
+6. **Less refreshing from the app itself.** No live-update channels exist today. Set the shared query cache to `staleTime: 5 min` and `refetchOnWindowFocus: false`.
+7. **Honest reminder settings.** In the task dialog, the start time snaps to :00/:30 (`step=1800`). Add a note: "Reminders are sent between 08:00 and 20:00 and may arrive up to 30 min early or late." Add the same note in Settings next to the reminder section.
 
-Add a new column to store the ordered list:
+## Trade-off
 
-```sql
-ALTER TABLE public.llm_config
-  ADD COLUMN local_models text[] NOT NULL DEFAULT '{}';
-```
+Reminders can be off by up to 30 minutes, and none arrive at night. To tighten this to 15 minutes, change `*/30` to `*/15`. That's about 48 runs a day, which is still small.
 
-Keep the existing `local_model` column for backward compatibility (used as a fallback seed if `local_models` is empty).
+## Technical details
 
-### 2. Settings UI (`src/pages/SettingsPage.tsx`)
-
-Inside the "Local LLM" card, replace the single Model input with:
-
-- A list of **5 numbered inputs** ("Model 1 (primary)", "Model 2 (fallback)", …, "Model 5").
-- Each input is plain text (e.g. `llama-3.1-8b-instruct`, `qwen2.5-7b`, …).
-- Small "Up/Down" buttons (or a drag handle) next to each row to reorder.
-- A short helper text explaining the fallback behavior:
-  > "If the first model is unavailable in LM Studio or fails to respond, the next one in the list is tried automatically."
-- Optional **"Test"** button that calls `GET {endpoint root}/models` and highlights which configured names are currently loaded/installed.
-- On save, the array is written to `local_models`; empty rows are stripped.
-
-### 3. Runtime fallback logic
-
-Add a small shared helper `src/lib/localLlmFallback.ts` exporting:
-
-```ts
-callLocalLlmWithFallback({
-  endpoint, models, buildPayload, parseResponse, timeoutMs = 90000
-}): Promise<T>
-```
-
-It iterates the `models` array in order. For each model:
-- Build the payload via `buildPayload(model)`.
-- POST to the endpoint with an `AbortController` timeout.
-- Treat as **failure → try next model** when:
-  - `fetch` throws (network error, CORS, timeout/abort).
-  - Response status is not OK (LM Studio returns 4xx when the model name is unknown or cannot be loaded).
-  - Response body is empty, not valid JSON, or contains no usable `choices[0].message` content / tool_call.
-  - `parseResponse(...)` throws (LLM produced unparseable output).
-- On success, return the parsed value and remember which model worked (for a toast like "Used fallback model: qwen2.5-7b").
-- If the entire list is exhausted, throw an aggregated error listing each attempt.
-
-### 4. Wire the helper into existing hooks
-
-- `src/hooks/useAiScheduler.ts` — rewrite `fetchLocalSchedule` to use `callLocalLlmWithFallback`, where `buildPayload(model)` produces the current two payload variants (`messages` and `fallbackSingleMessage`) for that model, and `parseResponse` extracts the schedule (tool call or JSON-in-text). Default model list = `llmConfig.local_models?.length ? llmConfig.local_models : [llmConfig.local_model || "llama3"]`.
-- `src/hooks/useCoupleLifeAiSuggestions.ts` — same pattern for the local branch.
-
-### 5. UX feedback
-
-- Show a toast when a non-primary model was used: `"Primary model unavailable, used 'qwen2.5-7b' instead."`
-- Show a clear error toast listing all failed models if every attempt fails.
-
-## Out of scope
-
-- No automated LM Studio "load model" REST call beyond passing the `model` field (LM Studio's JIT loading already handles this). If later you want explicit pre-loading via the LM Studio REST API (`/api/v0/models/load`), it can be added as a follow-up.
-- No changes to Lovable or Cloud providers.
-
-## Files touched
-
-- **New migration**: add `local_models text[]` column.
-- **New**: `src/lib/localLlmFallback.ts`
-- **Edited**: `src/pages/SettingsPage.tsx`, `src/hooks/useAiScheduler.ts`, `src/hooks/useCoupleLifeAiSuggestions.ts`
+- Change the cron with `run_sql`, not a migration, because it contains the project URL and key. Use `cron.unschedule` for the old job, then `cron.schedule` with `SELECT CASE WHEN EXISTS(...) THEN net.http_post(...) END`.
+- Files: `supabase/functions/send-due-reminders/index.ts`, `src/App.tsx` (QueryClient defaults), `src/components/TaskDialog.tsx`, `src/pages/SettingsPage.tsx`.
+- Update the memory notes on Google sync timing and reminder delivery.
