@@ -332,6 +332,10 @@ function NotificationsCard() {
         <Bell className="h-4 w-4 text-primary" />
         <Label className="text-sm font-semibold">Reminder Notifications</Label>
       </div>
+      <p className="text-xs text-muted-foreground">
+        Reminders are sent between 08:00 and 20:00 (Rome) and may arrive up to 30 min early or late.
+      </p>
+
 
       {!supported && isIOS && !isStandalone && (
         <div className="rounded-md border border-blue-500/30 bg-blue-500/10 p-3 text-xs text-blue-700 dark:text-blue-300 space-y-1">
