@@ -334,6 +334,7 @@ export function TaskDialog({ open, onOpenChange, task, initialValues }: TaskDial
               <Input
                 id="time"
                 type="time"
+                step={1800}
                 value={scheduledStartTime}
                 onChange={e => setScheduledStartTime(e.target.value)}
                 disabled={!scheduledDate}
@@ -357,6 +358,9 @@ export function TaskDialog({ open, onOpenChange, task, initialValues }: TaskDial
               </Select>
             </div>
           </div>
+          <p className="text-xs text-muted-foreground -mt-2">
+            Reminders are sent between 08:00 and 20:00 and may arrive up to 30 min early or late.
+          </p>
 
           {!isFollowUp && (
             <>
