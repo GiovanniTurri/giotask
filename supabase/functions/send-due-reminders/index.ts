@@ -66,7 +66,7 @@ Deno.serve(async (req) => {
         title: r.title,
         body: r.body,
         tag: r.tag,
-        data: { url: "/", taskId: r.task_id },
+        data: r.person_id ? { url: "/people", personId: r.person_id } : { url: "/", taskId: r.task_id },
       });
 
       for (const s of subs ?? []) {
