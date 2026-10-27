@@ -376,6 +376,123 @@ export type Database = {
         }
         Relationships: []
       }
+      people: {
+        Row: {
+          avatar_url: string | null
+          client_tag_id: string | null
+          created_at: string
+          id: string
+          last_contacted_at: string | null
+          name: string
+          next_contact_date: string | null
+          notes: string
+          recontact_every_days: number | null
+          updated_at: string
+        }
+        Insert: {
+          avatar_url?: string | null
+          client_tag_id?: string | null
+          created_at?: string
+          id?: string
+          last_contacted_at?: string | null
+          name: string
+          next_contact_date?: string | null
+          notes?: string
+          recontact_every_days?: number | null
+          updated_at?: string
+        }
+        Update: {
+          avatar_url?: string | null
+          client_tag_id?: string | null
+          created_at?: string
+          id?: string
+          last_contacted_at?: string | null
+          name?: string
+          next_contact_date?: string | null
+          notes?: string
+          recontact_every_days?: number | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "people_client_tag_id_fkey"
+            columns: ["client_tag_id"]
+            isOneToOne: false
+            referencedRelation: "client_tags"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      person_channels: {
+        Row: {
+          created_at: string
+          id: string
+          kind: string
+          label: string
+          person_id: string
+          value: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          kind?: string
+          label?: string
+          person_id: string
+          value?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          kind?: string
+          label?: string
+          person_id?: string
+          value?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_channels_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      person_contacts: {
+        Row: {
+          channel_kind: string | null
+          contacted_at: string
+          created_at: string
+          id: string
+          note: string
+          person_id: string
+        }
+        Insert: {
+          channel_kind?: string | null
+          contacted_at?: string
+          created_at?: string
+          id?: string
+          note?: string
+          person_id: string
+        }
+        Update: {
+          channel_kind?: string | null
+          contacted_at?: string
+          created_at?: string
+          id?: string
+          note?: string
+          person_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "person_contacts_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       push_subscriptions: {
         Row: {
           auth: string
@@ -412,6 +529,7 @@ export type Database = {
           created_at: string
           fire_at: string
           id: string
+          person_id: string | null
           sent_at: string | null
           tag: string
           task_id: string
@@ -422,6 +540,7 @@ export type Database = {
           created_at?: string
           fire_at: string
           id?: string
+          person_id?: string | null
           sent_at?: string | null
           tag: string
           task_id: string
@@ -432,6 +551,7 @@ export type Database = {
           created_at?: string
           fire_at?: string
           id?: string
+          person_id?: string | null
           sent_at?: string | null
           tag?: string
           task_id?: string
