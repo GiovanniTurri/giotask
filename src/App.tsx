@@ -10,6 +10,7 @@ import PrivacyPolicyPage from "./pages/PrivacyPolicyPage";
 import TermsOfServicePage from "./pages/TermsOfServicePage";
 import SettingsPage from "./pages/SettingsPage";
 import CoupleLifePage from "./pages/CoupleLifePage";
+import PeoplePage from "./pages/PeoplePage";
 import MagicLandingPage from "./pages/MagicLandingPage";
 import NotFound from "./pages/NotFound";
 import { useReminders } from "@/hooks/useReminders";
@@ -31,6 +32,7 @@ function AppShell() {
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/calendar" element={<CalendarPage />} />
+          <Route path="/people" element={<PeoplePage />} />
           <Route path="/couple-life" element={<CoupleLifePage />} />
           <Route path="/settings" element={<SettingsPage />} />
           <Route path="/privacy" element={<PrivacyPolicyPage />} />
