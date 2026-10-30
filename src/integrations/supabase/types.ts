@@ -35,6 +35,42 @@ export type Database = {
         }
         Relationships: []
       }
+      bookings: {
+        Row: {
+          created_at: string
+          duration_minutes: number
+          end_time: string
+          id: string
+          note: string
+          start_time: string
+          task_id: string | null
+          visitor_email: string
+          visitor_name: string
+        }
+        Insert: {
+          created_at?: string
+          duration_minutes: number
+          end_time: string
+          id?: string
+          note?: string
+          start_time: string
+          task_id?: string | null
+          visitor_email: string
+          visitor_name: string
+        }
+        Update: {
+          created_at?: string
+          duration_minutes?: number
+          end_time?: string
+          id?: string
+          note?: string
+          start_time?: string
+          task_id?: string | null
+          visitor_email?: string
+          visitor_name?: string
+        }
+        Relationships: []
+      }
       brain_config: {
         Row: {
           created_at: string

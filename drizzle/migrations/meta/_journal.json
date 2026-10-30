@@ -8,6 +8,13 @@
       "when": 1793097672897,
       "tag": "0000_create_people",
       "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1793365393571,
+      "tag": "0001_create_bookings",
+      "breakpoints": true
     }
   ]
 }
