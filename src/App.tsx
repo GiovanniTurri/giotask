@@ -14,6 +14,9 @@ import PeoplePage from "./pages/PeoplePage";
 import MagicLandingPage from "./pages/MagicLandingPage";
 import NotFound from "./pages/NotFound";
 import { useReminders } from "@/hooks/useReminders";
+import { AuthProvider, useAuth } from "@/hooks/useAuth";
+import LoginPage from "./pages/LoginPage";
+import BookPage from "./pages/BookPage";
 
 const queryClient = new QueryClient({
   defaultOptions: { queries: { staleTime: 5 * 60 * 1000, refetchOnWindowFocus: false } },
@@ -25,8 +28,12 @@ function RemindersMount() {
 }
 
 function AppShell() {
+  const { session, loading } = useAuth();
+  if (loading) return null;
+  if (!session) return <LoginPage />;
   return (
     <div className="flex min-h-screen">
+      <RemindersMount />
       <AppSidebar />
       <main className="flex-1 ml-16 lg:ml-56 p-6 lg:p-8">
         <Routes>
@@ -35,8 +42,6 @@ function AppShell() {
           <Route path="/people" element={<PeoplePage />} />
           <Route path="/couple-life" element={<CoupleLifePage />} />
           <Route path="/settings" element={<SettingsPage />} />
-          <Route path="/privacy" element={<PrivacyPolicyPage />} />
-          <Route path="/terms" element={<TermsOfServicePage />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </main>
@@ -49,13 +54,17 @@ const App = () => (
     <TooltipProvider>
       <Toaster />
       <Sonner />
-      <RemindersMount />
-      <BrowserRouter>
-        <Routes>
-          <Route path="/magic" element={<MagicLandingPage />} />
-          <Route path="/*" element={<AppShell />} />
-        </Routes>
-      </BrowserRouter>
+      <AuthProvider>
+        <BrowserRouter>
+          <Routes>
+            <Route path="/magic" element={<MagicLandingPage />} />
+            <Route path="/book" element={<BookPage />} />
+            <Route path="/privacy" element={<PrivacyPolicyPage />} />
+            <Route path="/terms" element={<TermsOfServicePage />} />
+            <Route path="/*" element={<AppShell />} />
+          </Routes>
+        </BrowserRouter>
+      </AuthProvider>
     </TooltipProvider>
   </QueryClientProvider>
 );
