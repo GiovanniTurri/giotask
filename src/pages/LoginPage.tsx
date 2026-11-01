@@ -47,10 +47,6 @@ export default function LoginPage() {
         <Button type="submit" className="w-full" disabled={busy}>
           {mode === "in" ? "Sign in" : "Create account"}
         </Button>
-        <button type="button" className="text-sm text-muted-foreground underline w-full"
-          onClick={() => setMode(mode === "in" ? "up" : "in")}>
-          {mode === "in" ? "First time? Create your account" : "Already have an account? Sign in"}
-        </button>
       </form>
     </div>
   );
