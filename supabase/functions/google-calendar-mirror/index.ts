@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveMirrorTarget } from "../_shared/mirrorTarget.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,6 +18,7 @@ interface Task {
   scheduled_date: string | null;
   scheduled_start_time: string | null;
   time_estimate: number | null;
+  google_calendar_target: string | null;
 }
 
 serve(async (req) => {
@@ -115,12 +117,12 @@ async function upsertMirror(
   supabase: any,
   task: Task,
   conn: any,
+  calendarId: string,
   clientId: string,
   clientSecret: string
 ): Promise<boolean> {
-  if (!task.scheduled_date || !task.scheduled_start_time) return false;
+  if (!task.scheduled_date || !task.scheduled_start_time || !conn) return false;
 
-  const calendarId = conn.mirror_target_calendar_id || "primary";
   const label = conn.mirror_label || "Focus";
   const visibility = conn.mirror_visibility || "private";
   const minutes = task.time_estimate || 30;
