@@ -1,5 +1,6 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { resolveMirrorTarget } from "../_shared/mirrorTarget.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -17,6 +18,7 @@ interface Task {
   scheduled_date: string | null;
   scheduled_start_time: string | null;
   time_estimate: number | null;
+  google_calendar_target: string | null;
 }
 
 serve(async (req) => {
@@ -36,48 +38,50 @@ serve(async (req) => {
     const body = await req.json().catch(() => ({}));
     const action = body.action as string;
 
-    if (action === "upsert") {
-      const taskIds: string[] = body.task_ids || (body.task_id ? [body.task_id] : []);
-      if (taskIds.length === 0) {
-        return jsonResponse({ error: "task_id or task_ids required" }, 400);
-      }
+    const { data: allConns, error: cErr } = await supabase
+      .from("google_calendar_connections")
+      .select("*");
+    if (cErr) throw cErr;
+    const conns = allConns || [];
 
-      const { data: tasks, error: tErr } = await supabase
-        .from("tasks")
-        .select("id, title, status, scheduled_date, scheduled_start_time, time_estimate")
-        .in("id", taskIds);
+    // Mirror each task into exactly ONE calendar; remove copies anywhere else.
+    const syncTask = async (task: Task): Promise<"up" | "rm" | "skip"> => {
+      const eligible = task.status !== "done" && !!task.scheduled_date && !!task.scheduled_start_time;
+      const target = eligible ? resolveMirrorTarget(task.google_calendar_target, conns) : null;
+      let removedAny = false;
+      for (const conn of conns) {
+        if (target && conn.id === target.connectionId) continue;
+        if (await deleteMirrorForTask(supabase, task.id, conn, clientId, clientSecret)) removedAny = true;
+      }
+      if (!target) return removedAny ? "rm" : "skip";
+      const conn = conns.find((c: any) => c.id === target.connectionId);
+      const did = await upsertMirror(supabase, task, conn, target.calendarId, clientId, clientSecret);
+      return did ? "up" : "skip";
+    };
+
+    const TASK_COLS = "id, title, status, scheduled_date, scheduled_start_time, time_estimate, google_calendar_target";
+
+    if (action === "upsert" || action === "backfill") {
+      let q = supabase.from("tasks").select(TASK_COLS);
+      if (action === "upsert") {
+        const taskIds: string[] = body.task_ids || (body.task_id ? [body.task_id] : []);
+        if (taskIds.length === 0) return jsonResponse({ error: "task_id or task_ids required" }, 400);
+        q = q.in("id", taskIds);
+      } else {
+        q = q.neq("status", "done").not("scheduled_date", "is", null).not("scheduled_start_time", "is", null);
+      }
+      const { data: tasks, error: tErr } = await q;
       if (tErr) throw tErr;
 
-      const { data: connections, error: cErr } = await supabase
-        .from("google_calendar_connections")
-        .select("*")
-        .eq("mirror_enabled", true);
-      if (cErr) throw cErr;
-
-      let upserted = 0;
-      let removed = 0;
-      let skipped = 0;
-
+      let upserted = 0, removed = 0, skipped = 0;
       for (const task of (tasks || []) as Task[]) {
-        // If task is unscheduled or done, remove any existing mirrors instead of upserting
-        const eligible = task.status !== "done" && !!task.scheduled_date && !!task.scheduled_start_time;
-
-        for (const conn of connections || []) {
-          if (!eligible) {
-            removed += await deleteMirrorForTask(supabase, task.id, conn, clientId, clientSecret);
-            continue;
-          }
-
-          try {
-            const did = await upsertMirror(supabase, task, conn, clientId, clientSecret);
-            if (did) upserted++;
-            else skipped++;
-          } catch (e) {
-            console.error(`Mirror upsert failed for task ${task.id} on conn ${conn.id}:`, e);
-          }
+        try {
+          const r = await syncTask(task);
+          if (r === "up") upserted++; else if (r === "rm") removed++; else skipped++;
+        } catch (e) {
+          console.error(`Mirror sync failed for task ${task.id}:`, e);
         }
       }
-
       return jsonResponse({ upserted, removed, skipped });
     }
 
@@ -86,50 +90,13 @@ serve(async (req) => {
       if (taskIds.length === 0) {
         return jsonResponse({ error: "task_id or task_ids required" }, 400);
       }
-
-      const { data: connections } = await supabase
-        .from("google_calendar_connections")
-        .select("*");
-
       let removed = 0;
       for (const taskId of taskIds) {
-        for (const conn of connections || []) {
+        for (const conn of conns) {
           removed += await deleteMirrorForTask(supabase, taskId, conn, clientId, clientSecret);
         }
       }
       return jsonResponse({ removed });
-    }
-
-    if (action === "backfill") {
-      const connectionId = body.connection_id as string;
-      if (!connectionId) return jsonResponse({ error: "connection_id required" }, 400);
-
-      const { data: conn, error: connErr } = await supabase
-        .from("google_calendar_connections")
-        .select("*")
-        .eq("id", connectionId)
-        .single();
-      if (connErr || !conn) throw new Error("Connection not found");
-      if (!conn.mirror_enabled) return jsonResponse({ error: "Mirror not enabled for this connection" }, 400);
-
-      const { data: tasks, error: tErr } = await supabase
-        .from("tasks")
-        .select("id, title, status, scheduled_date, scheduled_start_time, time_estimate")
-        .neq("status", "done")
-        .not("scheduled_date", "is", null)
-        .not("scheduled_start_time", "is", null);
-      if (tErr) throw tErr;
-
-      let upserted = 0;
-      for (const task of (tasks || []) as Task[]) {
-        try {
-          const did = await upsertMirror(supabase, task, conn, clientId, clientSecret);
-          if (did) upserted++;
-        } catch (e) {
-          console.error(`Backfill upsert failed for task ${task.id}:`, e);
-        }
-      }
-      return jsonResponse({ upserted });
     }
 
     return jsonResponse({ error: "Unknown action" }, 400);
@@ -150,12 +117,12 @@ async function upsertMirror(
   supabase: any,
   task: Task,
   conn: any,
+  calendarId: string,
   clientId: string,
   clientSecret: string
 ): Promise<boolean> {
-  if (!task.scheduled_date || !task.scheduled_start_time) return false;
+  if (!task.scheduled_date || !task.scheduled_start_time || !conn) return false;
 
-  const calendarId = conn.mirror_target_calendar_id || "primary";
   const label = conn.mirror_label || "Focus";
   const visibility = conn.mirror_visibility || "private";
   const minutes = task.time_estimate || 30;

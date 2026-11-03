@@ -165,6 +165,51 @@ export function useBackfillMirror() {
   });
 }
 
+export interface WritableCalendar {
+  connection_id: string;
+  google_email: string;
+  id: string;
+  summary: string;
+  backgroundColor: string;
+  primary: boolean;
+}
+
+export function useWritableCalendars(enabled = true) {
+  return useQuery({
+    queryKey: ["google-writable-calendars"],
+    enabled,
+    staleTime: 30 * 60_000,
+    queryFn: async () => {
+      const { data, error } = await supabase.functions.invoke("google-calendar-auth", {
+        body: { action: "list_writable_calendars" },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      return (data.calendars || []) as WritableCalendar[];
+    },
+  });
+}
+
+export function useSetDefaultMirror() {
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: async (p: { connectionId: string | null; calendarId?: string }) => {
+      const { data, error } = await supabase.functions.invoke("google-calendar-auth", {
+        body: { action: "set_default_mirror", connection_id: p.connectionId, calendar_id: p.calendarId },
+      });
+      if (error) throw error;
+      if (data?.error) throw new Error(data.error);
+      // Re-sync all scheduled tasks into the new single destination
+      const r = await supabase.functions.invoke("google-calendar-mirror", { body: { action: "backfill" } });
+      return r.data as { upserted: number; removed: number } | null;
+    },
+    onSuccess: () => {
+      qc.invalidateQueries({ queryKey: ["google-calendar-connections"] });
+      qc.invalidateQueries({ queryKey: ["google-calendar-events"] });
+    },
+  });
+}
+
 /** Fire-and-forget mirror trigger after a task mutation. */
 export async function triggerTaskMirror(action: "upsert" | "delete", taskIds: string | string[]) {
   try {
