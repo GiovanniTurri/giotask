@@ -196,9 +196,59 @@ serve(async (req) => {
         summary: c.summary,
         backgroundColor: c.backgroundColor,
         primary: c.primary || false,
+        accessRole: c.accessRole,
       }));
 
       return new Response(JSON.stringify({ calendars }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (body.action === "list_writable_calendars") {
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      const { data: conns, error: cErr } = await supabase.from("google_calendar_connections").select("*");
+      if (cErr) throw cErr;
+      const out: any[] = [];
+      for (const conn of conns || []) {
+        if (!String(conn.granted_scopes || "").includes("calendar.events")) continue;
+        try {
+          const token = await getValidAccessToken(conn, supabase, clientId, clientSecret);
+          const r = await fetch("https://www.googleapis.com/calendar/v3/users/me/calendarList?minAccessRole=writer", {
+            headers: { Authorization: `Bearer ${token}` },
+          });
+          const d = await r.json();
+          if (!r.ok) { console.error("calendarList failed", r.status, JSON.stringify(d)); continue; }
+          for (const c of d.items || []) {
+            out.push({
+              connection_id: conn.id,
+              google_email: conn.google_email,
+              id: c.id,
+              summary: c.summaryOverride || c.summary,
+              backgroundColor: c.backgroundColor,
+              primary: c.primary || false,
+            });
+          }
+        } catch (e) {
+          console.error("list_writable_calendars error for", conn.google_email, e);
+        }
+      }
+      return new Response(JSON.stringify({ calendars: out }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (body.action === "set_default_mirror") {
+      const supabase = createClient(supabaseUrl, supabaseKey);
+      // connection_id null => no default
+      await supabase.from("google_calendar_connections").update({ mirror_enabled: false }).neq("id", body.connection_id || "00000000-0000-0000-0000-000000000000");
+      if (body.connection_id) {
+        const { error } = await supabase
+          .from("google_calendar_connections")
+          .update({ mirror_enabled: true, mirror_target_calendar_id: String(body.calendar_id || "primary") })
+          .eq("id", body.connection_id);
+        if (error) throw error;
+      }
+      return new Response(JSON.stringify({ success: true }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
