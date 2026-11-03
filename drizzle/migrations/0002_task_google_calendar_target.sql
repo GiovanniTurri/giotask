@@ -1,0 +1,2 @@
+ALTER TABLE public.tasks ADD COLUMN IF NOT EXISTS google_calendar_target text;
+COMMENT ON COLUMN public.tasks.google_calendar_target IS 'null = default mirror calendar; none = do not mirror; otherwise connectionId|calendarId';

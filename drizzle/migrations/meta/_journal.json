@@ -15,6 +15,13 @@
       "when": 1793365393571,
       "tag": "0001_create_bookings",
       "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1793739012421,
+      "tag": "0002_task_google_calendar_target",
+      "breakpoints": true
     }
   ]
 }

@@ -631,6 +631,7 @@ export type Database = {
           created_at: string
           description: string | null
           follow_up_message: string | null
+          google_calendar_target: string | null
           id: string
           parent_task_id: string | null
           priority: number | null
@@ -648,6 +649,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           follow_up_message?: string | null
+          google_calendar_target?: string | null
           id?: string
           parent_task_id?: string | null
           priority?: number | null
@@ -665,6 +667,7 @@ export type Database = {
           created_at?: string
           description?: string | null
           follow_up_message?: string | null
+          google_calendar_target?: string | null
           id?: string
           parent_task_id?: string | null
           priority?: number | null
