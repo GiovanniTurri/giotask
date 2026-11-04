@@ -12,6 +12,7 @@ import { useClientTags } from "@/hooks/useClientTags";
 import { useCreateTask, useUpdateTask, type Task, type TaskInsert } from "@/hooks/useTasks";
 import { supabase } from "@/integrations/supabase/client";
 import { useQueryClient } from "@tanstack/react-query";
+import { useWritableCalendars } from "@/hooks/useGoogleCalendar";
 import { toast } from "sonner";
 
 interface TaskDialogProps {
@@ -69,6 +70,8 @@ export function TaskDialog({ open, onOpenChange, task, initialValues }: TaskDial
   const [scheduledDate, setScheduledDate] = useState("");
   const [scheduledStartTime, setScheduledStartTime] = useState("");
   const [reminderMinutes, setReminderMinutes] = useState<string>("default");
+  const [gcalTarget, setGcalTarget] = useState<string>("default");
+  const { data: writableCals } = useWritableCalendars(open);
 
   const [followUpsEnabled, setFollowUpsEnabled] = useState(false);
   const [followUps, setFollowUps] = useState<FollowUpDraft[]>([]);
@@ -93,7 +96,9 @@ export function TaskDialog({ open, onOpenChange, task, initialValues }: TaskDial
       setScheduledStartTime(task.scheduled_start_time ? task.scheduled_start_time.slice(0, 5) : "");
       const rm = (task as any).reminder_minutes;
       setReminderMinutes(rm == null ? "default" : rm === -1 ? "off" : String(rm));
+      setGcalTarget((task as any).google_calendar_target || "default");
     } else {
+      setGcalTarget("default");
       setTitle(initialValues?.title || "");
       setDescription(initialValues?.description || "");
       setTimeEstimate(initialValues?.time_estimate || 30);
@@ -185,6 +190,7 @@ export function TaskDialog({ open, onOpenChange, task, initialValues }: TaskDial
       scheduled_date: scheduledDate || null,
       scheduled_start_time: scheduledStartTime ? `${scheduledStartTime}:00` : null,
       reminder_minutes: reminderValue,
+      google_calendar_target: gcalTarget === "default" ? null : gcalTarget,
     };
 
     try {
@@ -361,6 +367,25 @@ export function TaskDialog({ open, onOpenChange, task, initialValues }: TaskDial
           <p className="text-xs text-muted-foreground -mt-2">
             Reminders are sent between 08:00 and 20:00 and may arrive up to 30 min early or late.
           </p>
+
+          <div className="space-y-2">
+            <Label>Visible in Google Calendar</Label>
+            <Select value={gcalTarget} onValueChange={setGcalTarget}>
+              <SelectTrigger><SelectValue /></SelectTrigger>
+              <SelectContent>
+                <SelectItem value="default">Default calendar</SelectItem>
+                <SelectItem value="none">Don't copy</SelectItem>
+                {(writableCals || []).map((c) => (
+                  <SelectItem key={`${c.connection_id}|${c.id}`} value={`${c.connection_id}|${c.id}`}>
+                    {c.summary} · {c.google_email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              The task appears in one calendar only, as a private block with a hidden title.
+            </p>
+          </div>
 
           {!isFollowUp && (
             <>
