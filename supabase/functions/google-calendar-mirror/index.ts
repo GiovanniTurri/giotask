@@ -137,15 +137,17 @@ async function upsertMirror(
   // dateTime without offset paired with timeZone field. For simplicity send
   // wall-clock with the user's runtime TZ-equivalent via UTC string and let
   // Google honor it. We send UTC ISO so it's unambiguous.
-  const startIso = new Date(`${dateTimePart}`).toISOString();
-  const endIso = new Date(new Date(`${dateTimePart}`).getTime() + minutes * 60_000).toISOString();
+  // Wall-clock Rome time; Google applies DST via timeZone.
+  const fmt = (d: Date) => d.toISOString().slice(0, 19);
+  const startIso = fmt(startDate);
+  const endIso = fmt(endDate);
 
   const eventBody = {
     summary: label,
     visibility,
     transparency: "opaque",
-    start: { dateTime: startIso },
-    end: { dateTime: endIso },
+    start: { dateTime: startIso, timeZone: "Europe/Rome" },
+    end: { dateTime: endIso, timeZone: "Europe/Rome" },
     extendedProperties: {
       private: {
         managed_by: "lovable_task_mirror",
