@@ -22,6 +22,8 @@ import {
   useSyncGoogleCalendar,
   useUpdateMirrorSettings,
   useBackfillMirror,
+  useWritableCalendars,
+  useSetDefaultMirror,
 } from "@/hooks/useGoogleCalendar";
 import {
   CalendarDays,
@@ -38,6 +40,8 @@ import { format } from "date-fns";
 
 export function GoogleCalendarSettings() {
   const [searchParams, setSearchParams] = useSearchParams();
+  const writable = useWritableCalendars();
+  const setDefault = useSetDefaultMirror();
   const { data: connections, isLoading } = useGoogleCalendarConnections();
   const connect = useConnectGoogleCalendar();
   const disconnect = useDisconnectGoogleCalendar();
@@ -171,6 +175,26 @@ export function GoogleCalendarSettings() {
     }
   };
 
+  const defaultConn = (connections || []).find((c: any) => c.mirror_enabled) as any;
+  const defaultValue = defaultConn
+    ? `${defaultConn.id}|${(writable.data || []).find((c) => c.connection_id === defaultConn.id && c.primary && defaultConn.mirror_target_calendar_id === "primary")?.id ?? defaultConn.mirror_target_calendar_id}`
+    : "none";
+
+  const handleSetDefault = async (v: string) => {
+    try {
+      if (v === "none") {
+        await setDefault.mutateAsync({ connectionId: null });
+        toast.success("Tasks are no longer copied to Google");
+      } else {
+        const i = v.indexOf("|");
+        const r = await setDefault.mutateAsync({ connectionId: v.slice(0, i), calendarId: v.slice(i + 1) });
+        toast.success(`Default calendar saved${r?.upserted ? ` · ${r.upserted} tasks copied` : ""}`);
+      }
+    } catch (e: any) {
+      toast.error(e.message);
+    }
+  };
+
   if (isLoading) {
     return (
       <Card className="p-5">
@@ -188,6 +212,32 @@ export function GoogleCalendarSettings() {
 
       {connections && connections.length > 0 ? (
         <div className="space-y-4">
+          <div className="border rounded-lg p-4 space-y-2">
+            <Label className="text-sm font-medium flex items-center gap-2">
+              <Sparkles className="h-4 w-4 text-primary" /> Default calendar for your tasks
+            </Label>
+            <Select
+              value={defaultValue}
+              onValueChange={handleSetDefault}
+              disabled={setDefault.isPending}
+            >
+              <SelectTrigger className="h-9">
+                <SelectValue placeholder={writable.isLoading ? "Loading calendars…" : "Choose"} />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="none">Don't copy tasks</SelectItem>
+                {(writable.data || []).map((c) => (
+                  <SelectItem key={`${c.connection_id}|${c.id}`} value={`${c.connection_id}|${c.id}`}>
+                    {c.summary} · {c.google_email}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+            <p className="text-xs text-muted-foreground">
+              Scheduled tasks are copied to this one calendar only. You can pick a different
+              calendar for a single task in the task window.
+            </p>
+          </div>
           {connections.map((conn) => {
             const writeOk = hasWriteScope(conn);
             const target = (conn as any).mirror_target_calendar_id || "primary";
