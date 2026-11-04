@@ -296,17 +296,11 @@ export function GoogleCalendarSettings() {
                     <div className="flex-1 space-y-1">
                       <div className="flex items-center justify-between gap-2">
                         <Label className="text-sm font-medium">
-                          Mirror tasks as Focus blocks
+                          Focus block label
                         </Label>
-                        <Switch
-                          checked={!!(conn as any).mirror_enabled}
-                          onCheckedChange={(v) => handleToggleMirror(conn, v)}
-                          disabled={!writeOk || updateMirror.isPending || backfill.isPending}
-                        />
                       </div>
                       <p className="text-xs text-muted-foreground">
-                        Writes a private "{label}" event to this account whenever a task is
-                        scheduled. The real task name stays hidden.
+                        Name shown on Google for tasks copied to this account. The real task name stays hidden.
                       </p>
                     </div>
                   </div>
@@ -327,37 +321,8 @@ export function GoogleCalendarSettings() {
                     </div>
                   )}
 
-                  {writeOk && (conn as any).mirror_enabled && (
+                  {writeOk && (
                     <div className="space-y-3 pl-7">
-                      <div className="space-y-1.5">
-                        <Label className="text-xs text-muted-foreground">
-                          Target calendar
-                        </Label>
-                        <Select
-                          value={target}
-                          onValueChange={(v) =>
-                            handleSaveMirrorOptions(conn, { target: v })
-                          }
-                        >
-                          <SelectTrigger className="h-9">
-                            <SelectValue />
-                          </SelectTrigger>
-                          <SelectContent>
-                            <SelectItem value="primary">Primary calendar</SelectItem>
-                            {(activeConnectionId === conn.id ? calendars : []).map((c) => (
-                              <SelectItem key={c.id} value={c.id}>
-                                {c.summary}
-                                {c.primary ? " (Primary)" : ""}
-                              </SelectItem>
-                            ))}
-                          </SelectContent>
-                        </Select>
-                        {activeConnectionId !== conn.id && (
-                          <p className="text-[11px] text-muted-foreground">
-                            Click "Select Calendars" above to load more options.
-                          </p>
-                        )}
-                      </div>
 
                       <div className="space-y-1.5">
                         <Label className="text-xs text-muted-foreground">Event label</Label>
