@@ -123,7 +123,15 @@ async function upsertMirror(
 ): Promise<boolean> {
   if (!task.scheduled_date || !task.scheduled_start_time || !conn) return false;
 
-  const label = conn.mirror_label || "Focus";
+  // Bookings get a descriptive title with the visitor's name; other tasks
+  // keep the private mirror label (e.g. "Focus").
+  let label = conn.mirror_label || "Focus";
+  const { data: booking } = await supabase
+    .from("bookings")
+    .select("visitor_name")
+    .eq("task_id", task.id)
+    .maybeSingle();
+  if (booking?.visitor_name) label = `Booked by ${booking.visitor_name}`;
   const visibility = conn.mirror_visibility || "private";
   const minutes = task.time_estimate || 30;
 
