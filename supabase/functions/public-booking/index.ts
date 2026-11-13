@@ -162,6 +162,12 @@ Deno.serve(async (req) => {
       tag: `booking-${task.id}`,
     });
 
+    // Copy the booking into the owner's Google Calendar (default destination).
+    const { data: mr, error: mErr } = await supabase.functions.invoke("google-calendar-mirror", {
+      body: { action: "upsert", task_ids: [task.id] },
+    });
+    if (mErr || mr?.error) console.error("Booking mirror failed", mErr ?? mr);
+
     return json({ ok: true, date, time: time.slice(0, 5) });
   } catch (err) {
     console.error("public-booking error", err);
