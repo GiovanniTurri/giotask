@@ -53,26 +53,30 @@ function addDays(date: string, n: number) {
 
 async function busyIntervals(fromDate: string, toDate: string) {
   const busy: Array<[number, number]> = [];
-  const { data: tasks } = await supabase
+  const { data: tasks, error: tasksError } = await supabase
     .from("tasks")
     .select("scheduled_date, scheduled_start_time, time_estimate, status")
     .gte("scheduled_date", fromDate).lte("scheduled_date", toDate)
     .not("scheduled_start_time", "is", null).neq("status", "done");
+  if (tasksError) throw new Error("Availability temporarily unavailable");
   for (const t of tasks || []) {
+    if (!t.scheduled_date) continue;
     const [h, mi] = String(t.scheduled_start_time).split(":").map(Number);
-    const s = romeToUtc(t.scheduled_date!, h * 60 + mi);
+    const s = romeToUtc(t.scheduled_date, h * 60 + mi);
     busy.push([s, s + (t.time_estimate || 30) * 60000]);
   }
   const fromIso = new Date(romeToUtc(fromDate, 0)).toISOString();
   const toIso = new Date(romeToUtc(addDays(toDate, 1), 0)).toISOString();
-  const { data: events } = await supabase
+  const { data: events, error: eventsError } = await supabase
     .from("google_calendar_events")
     .select("start_time, end_time, all_day")
     .lt("start_time", toIso).gt("end_time", fromIso).eq("all_day", false);
+  if (eventsError) throw new Error("Availability temporarily unavailable");
   for (const e of events || []) busy.push([Date.parse(e.start_time), Date.parse(e.end_time)]);
-  const { data: bookings } = await supabase
+  const { data: bookings, error: bookingsError } = await supabase
     .from("bookings").select("start_time, end_time")
     .lt("start_time", toIso).gt("end_time", fromIso);
+  if (bookingsError) throw new Error("Availability temporarily unavailable");
   for (const b of bookings || []) busy.push([Date.parse(b.start_time), Date.parse(b.end_time)]);
   return busy;
 }
@@ -164,13 +168,14 @@ Deno.serve(async (req) => {
 
     // Copy the booking into the owner's Google Calendar (default destination).
     const { data: mr, error: mErr } = await supabase.functions.invoke("google-calendar-mirror", {
+      headers: { Authorization: `Bearer ${Deno.env.get("LOVABLE_CRON_SECRET") || Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")}` },
       body: { action: "upsert", task_ids: [task.id] },
     });
-    if (mErr || mr?.error) console.error("Booking mirror failed", mErr ?? mr);
+    if (mErr || mr?.error) console.error("Booking mirror failed");
 
     return json({ ok: true, date, time: time.slice(0, 5) });
   } catch (err) {
     console.error("public-booking error", err);
-    return json({ error: err instanceof Error ? err.message : "Unexpected error" }, 500);
+    return json({ error: "Booking service temporarily unavailable. Please try again." }, 500);
   }
 });

@@ -265,6 +265,24 @@ export type Database = {
           },
         ]
       }
+      google_oauth_states: {
+        Row: {
+          expires_at: string
+          nonce: string
+          origin: string
+        }
+        Insert: {
+          expires_at?: string
+          nonce: string
+          origin: string
+        }
+        Update: {
+          expires_at?: string
+          nonce?: string
+          origin?: string
+        }
+        Relationships: []
+      }
       holidays: {
         Row: {
           created_at: string
@@ -726,7 +744,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      is_app_owner: { Args: never; Returns: boolean }
     }
     Enums: {
       [_ in never]: never

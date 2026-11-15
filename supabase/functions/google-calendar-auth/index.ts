@@ -1,5 +1,7 @@
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { requireOwner } from "../_shared/ownerAuth.ts";
+import { allowedOAuthOrigin, validOAuthNonce } from "../_shared/oauthState.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -35,7 +37,19 @@ serve(async (req) => {
     if (action === "callback") {
       const code = url.searchParams.get("code");
       const error = url.searchParams.get("error");
-      const appOrigin = url.searchParams.get("state") || "";
+      const nonce = url.searchParams.get("state");
+      if (!validOAuthNonce(nonce)) {
+        return new Response("Invalid OAuth state", { status: 400 });
+      }
+      const stateClient = createClient(supabaseUrl, supabaseKey);
+      // Atomic consume: a replay, expired state, or unsolicited callback fails.
+      const { data: state, error: stateError } = await stateClient
+        .from("google_oauth_states").delete().eq("nonce", nonce)
+        .gt("expires_at", new Date().toISOString()).select("origin").maybeSingle();
+      const appOrigin = allowedOAuthOrigin(state?.origin);
+      if (stateError || !state || !appOrigin) {
+        return new Response("Invalid or expired OAuth state", { status: 400 });
+      }
 
       if (error) {
         return new Response(redirectHtml(appOrigin, `error=${encodeURIComponent(error)}`), {
@@ -66,7 +80,7 @@ serve(async (req) => {
 
       const tokens = await tokenRes.json();
       if (!tokenRes.ok) {
-        console.error("Token exchange failed:", tokens);
+        console.error("Token exchange failed", tokenRes.status);
         return new Response(redirectHtml(appOrigin, `error=${encodeURIComponent(tokens.error_description || "token_exchange_failed")}`), {
           headers: { "Content-Type": "text/html" },
         });
@@ -141,9 +155,20 @@ serve(async (req) => {
     }
 
     // POST actions
+    const denied = await requireOwner(req);
+    if (denied) return denied;
     const body = await req.json().catch(() => ({}));
 
     if (body.action === "get_auth_url") {
+      const origin = allowedOAuthOrigin(body.origin);
+      if (!origin) return new Response(JSON.stringify({ error: "Invalid return origin" }), {
+        status: 400, headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+      const nonce = crypto.randomUUID();
+      const stateClient = createClient(supabaseUrl, supabaseKey);
+      await stateClient.from("google_oauth_states").delete().lt("expires_at", new Date().toISOString());
+      const { error: stateError } = await stateClient.from("google_oauth_states").insert({ nonce, origin });
+      if (stateError) throw new Error("Could not start Google connection");
       const redirectUri = `${supabaseUrl}/functions/v1/google-calendar-auth?action=callback`;
       const authUrl = `${GOOGLE_AUTH_URL}?${new URLSearchParams({
         client_id: clientId,
@@ -153,7 +178,7 @@ serve(async (req) => {
         access_type: "offline",
         prompt: "consent",
         include_granted_scopes: "true",
-        state: body.origin || "",
+        state: nonce,
       })}`;
 
       return new Response(JSON.stringify({ url: authUrl }), {
@@ -333,6 +358,6 @@ async function getValidAccessToken(
 }
 
 function redirectHtml(origin: string, params: string) {
-  const target = origin ? `${origin}/settings?gcal=${params}` : `about:blank`;
-  return `<!DOCTYPE html><html><head><meta http-equiv="refresh" content="0;url=${target}"><script>window.location.href="${target}";</script></head><body>Redirecting...</body></html>`;
+  const target = `${origin}/settings?gcal=${params}`;
+  return `<!DOCTYPE html><html><head><script>window.location.replace(${JSON.stringify(target).replace(/</g, "\\u003c")});</script></head><body>Redirecting...</body></html>`;
 }

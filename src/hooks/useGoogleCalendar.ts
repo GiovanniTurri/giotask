@@ -7,7 +7,7 @@ export function useGoogleCalendarConnections() {
     queryFn: async () => {
       const { data, error } = await supabase
         .from("google_calendar_connections")
-        .select("*");
+        .select("id,google_email,selected_calendars,last_synced_at,created_at,updated_at,mirror_enabled,mirror_target_calendar_id,mirror_label,mirror_visibility,granted_scopes");
       if (error) throw error;
       return data;
     },

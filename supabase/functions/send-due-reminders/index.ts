@@ -1,3 +1,5 @@
+import { requireOwner } from "../_shared/ownerAuth.ts";
+import { inReminderDeliveryWindow } from "../_shared/reminderWindow.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2.99.3";
 import webpush from "npm:web-push@3.6.7";
 
@@ -10,7 +12,16 @@ const corsHeaders = {
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const denied = await requireOwner(req, true);
+  if (denied) return denied;
+
   try {
+    const body = await req.json().catch(() => ({}));
+    if (body.scheduled === true && !inReminderDeliveryWindow(new Date())) {
+      return new Response(JSON.stringify({ delivered: 0, skipped: "outside_delivery_window" }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
     const supabase = createClient(
       Deno.env.get("SUPABASE_URL")!,
       Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!
